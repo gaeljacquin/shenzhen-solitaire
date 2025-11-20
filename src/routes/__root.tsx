@@ -1,10 +1,6 @@
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
+import { Scripts, createRootRoute } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
-
-import Header from '../components/Header'
-
-import StoreDevtools from '../lib/demo-store-devtools'
 
 import appCss from '../styles.css?url'
 
@@ -36,11 +32,7 @@ export const Route = createRootRoute({
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <head>
-        <HeadContent />
-      </head>
       <body>
-        <Header />
         {children}
         <TanStackDevtools
           config={{
@@ -51,7 +43,6 @@ function RootDocument({ children }: { children: React.ReactNode }) {
               name: 'Tanstack Router',
               render: <TanStackRouterDevtoolsPanel />,
             },
-            StoreDevtools,
           ]}
         />
         <Scripts />
