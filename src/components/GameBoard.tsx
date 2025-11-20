@@ -1,6 +1,6 @@
 import React from 'react'
 import { useStore } from '@tanstack/react-store'
-import { gameStore, moveCard, performWandMove } from '../lib/store'
+import { gameStore, moveCard, performWandMove, triggerAutoMove } from '../lib/store'
 import { Card } from './Card'
 import { ControlPanel } from './ControlPanel'
 import { Flower, Wand2 } from 'lucide-react'
@@ -120,15 +120,61 @@ export function GameBoard() {
     }
   }
 
-  const handleCardDoubleClick = (card: CardType) => {
+  // Auto-move '1's on mount or new game
+  React.useEffect(() => {
+    if (state.status === 'playing') {
+      // Delay to allow deal animation to finish and user to see the tableau
+      const timer = setTimeout(() => {
+        triggerAutoMove()
+      }, 1000) // Increased to 1000ms
+      return () => clearTimeout(timer)
+    }
+  }, [state.status, state.history.length === 0])
+
+  // Helper to check if a card can move to foundation
+  const canMoveToFoundation = (card: CardType) => {
+    if (card.kind === 'flower') return isFlowerAvailable
+    if (card.kind === 'normal') {
+      const currentVal = state.foundations[card.color]
+      return card.value === currentVal + 1
+    }
+    return false
+  }
+
+  function handleCardDoubleClick(card: CardType) {
+    // ... existing logic ...
+    let targetFoundationId: string | null = null
     if (card.kind === 'flower') {
-      moveCard(card.id, 'foundation-flower')
+      if (isFlowerAvailable) targetFoundationId = 'foundation-flower'
+    } else if (card.kind === 'normal') {
+      const currentVal = state.foundations[card.color]
+      if (card.value === currentVal + 1) {
+        targetFoundationId = `foundation-${card.color}`
+      }
+    }
+
+    if (targetFoundationId) {
+      moveCard(card.id, targetFoundationId)
+      return
+    }
+
+    // 2. If not foundation, try Rightmost Free Cell
+    let targetFreeCellId: string | null = null
+    for (let i = state.freeCells.length - 1; i >= 0; i--) {
+      if (state.freeCells[i] === null) {
+        targetFreeCellId = `free-${i}`
+        break
+      }
+    }
+
+    if (targetFreeCellId) {
+      moveCard(card.id, targetFreeCellId)
     }
   }
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <div className="w-full max-w-7xl mx-auto p-4 flex flex-col items-center min-h-screen">
+      <div key={state.gameId} className="w-full max-w-7xl mx-auto p-4 flex flex-col items-center min-h-screen">
         {/* ... existing layout ... */}
 
         {/* Drag Overlay */}
@@ -145,7 +191,7 @@ export function GameBoard() {
         </DragOverlay>
 
         {/* Top Bar: Free Cells, Center Stack, Foundations */}
-        <div className="w-full flex justify-between items-start mb-8 gap-8"> {/* Increased gap */}
+        <div className="w-full flex justify-between items-start mb-8 gap-8">
 
           {/* Free Cells (Top Left) */}
           <div className="flex gap-2">
@@ -156,6 +202,7 @@ export function GameBoard() {
                     card={card}
                     cardStyle={cardStyle}
                     onDoubleClick={() => handleCardDoubleClick(card)}
+                    canMoveToFoundation={canMoveToFoundation(card)}
                   />
                 )}
               </DroppableZone>
@@ -169,7 +216,7 @@ export function GameBoard() {
               id="foundation-flower"
               className={cn(
                 "w-24 h-32 border-2 border-slate-700 rounded-lg bg-slate-800/30 flex items-center justify-center relative transition-all duration-300",
-                (isGlowEnabled || isFlowerAvailable) && "shadow-[0_0_15px_rgba(236,72,153,0.6)] border-pink-500/50" // Added glow logic
+                (isGlowEnabled || isFlowerAvailable) && "shadow-[0_0_15px_rgba(236,72,153,0.6)] border-pink-500/50"
               )}
             >
               <Flower className={cn(
@@ -178,9 +225,9 @@ export function GameBoard() {
               )} />
               {state.foundations.flower && (
                 <Card
-                  card={{ id: 'flower-placeholder', kind: 'flower' }}
+                  card={{ id: 'flower', kind: 'flower' }} // Use consistent ID for layout animation
                   cardStyle={cardStyle}
-                  disabled={true} // Disable drag and dim
+                  disabled={true}
                 />
               )}
             </DroppableZone>
@@ -197,19 +244,36 @@ export function GameBoard() {
           <div className="flex flex-col gap-2 items-end">
             <div className="flex gap-2">
               {/* Numbered Foundations */}
-              {['green', 'purple', 'indigo'].map((color) => (
-                <DroppableZone key={color} id={`foundation-${color}`} className="w-24 h-32 border-2 border-slate-700 rounded-lg bg-slate-800/30 flex items-center justify-center relative">
-                  <div className={cn("absolute inset-0 opacity-20 rounded-sm",
-                    color === 'green' && "bg-emerald-600",
-                    color === 'purple' && "bg-purple-900",
-                    color === 'indigo' && "bg-indigo-900"
-                  )} />
-                  {/* Placeholder for foundation top card */}
-                  <div className="text-slate-500 font-bold text-3xl opacity-70">
-                    {state.foundations[color as keyof typeof state.foundations] || ''}
-                  </div>
-                </DroppableZone>
-              ))}
+              {['green', 'purple', 'indigo'].map((color) => {
+                const value = state.foundations[color as keyof typeof state.foundations] as number
+                const foundationCard: CardType | null = value > 0 ? {
+                  id: `normal-${color}-${value}`,
+                  kind: 'normal',
+                  color: color as any,
+                  value: value
+                } : null
+
+                return (
+                  <DroppableZone key={color} id={`foundation-${color}`} className="w-24 h-32 border-2 border-slate-700 rounded-lg bg-slate-800/30 flex items-center justify-center relative">
+                    <div className={cn("absolute inset-0 opacity-20 rounded-sm",
+                      color === 'green' && "bg-emerald-600",
+                      color === 'purple' && "bg-purple-900",
+                      color === 'indigo' && "bg-indigo-900"
+                    )} />
+                    {foundationCard ? (
+                      <Card
+                        card={foundationCard}
+                        cardStyle={cardStyle}
+                        disabled={true}
+                      />
+                    ) : (
+                      <div className="text-slate-500 font-bold text-3xl opacity-70">
+                        {/* Empty placeholder */}
+                      </div>
+                    )}
+                  </DroppableZone>
+                )
+              })}
             </div>
 
             {/* Auto-Complete Button */}
@@ -232,24 +296,27 @@ export function GameBoard() {
         </div>
 
         {/* Main Tableau (Columns) */}
-        <div className="w-full flex justify-center gap-6 mb-8"> {/* Increased gap to 6 */}
+        <div className="w-full flex justify-center gap-6 mb-8">
           {state.columns.map((column, i) => (
             <DroppableZone
               key={`col-${i}`}
               id={`col-${i}`}
-              className="w-28 min-h-[600px] flex flex-col gap-[-3rem] p-1 border-2 border-slate-800/50 rounded-lg bg-slate-900/20 items-center pt-2" // Increased width to w-28, added items-center and pt-2 for gap
+              className="w-28 min-h-[600px] flex flex-col gap-[-3rem] p-1 border-2 border-slate-800/50 rounded-lg bg-slate-900/20 items-center pt-2"
             >
               {column.map((card, index) => {
-                // Check if this card is part of the currently dragged stack
                 const isBeingDragged = draggedStack.some(c => c.id === card.id)
+                // Only top card of column can move to foundation
+                const isTopCard = index === column.length - 1
+                const canMove = isTopCard && canMoveToFoundation(card)
 
                 return (
                   <div key={`${i}-${index}`} style={{ marginTop: index === 0 ? 0 : '-6rem' }}>
                     <Card
                       card={card}
                       cardStyle={cardStyle}
-                      className={isBeingDragged ? "opacity-0" : ""} // Hide dragged cards
+                      className={isBeingDragged ? "opacity-0" : ""}
                       onDoubleClick={() => handleCardDoubleClick(card)}
+                      canMoveToFoundation={canMove}
                     />
                   </div>
                 )

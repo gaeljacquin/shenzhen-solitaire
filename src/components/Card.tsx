@@ -4,6 +4,7 @@ import { cn } from '../lib/utils'
 import { Flower, Sparkles, Flame, Cloud } from 'lucide-react'
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
+import { motion } from 'motion/react'
 
 interface CardProps {
   card: CardType
@@ -14,18 +15,34 @@ interface CardProps {
   cardStyle?: 'filled' | 'outlined'
   disabled?: boolean
   onDoubleClick?: () => void
+  canMoveToFoundation?: boolean
 }
 
-export function Card({ card, isDragging: propIsDragging, className, style: propStyle, onClick, onDoubleClick, cardStyle = 'filled', disabled }: CardProps) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+export function Card({
+  card,
+  isDragging: propIsDragging,
+  className,
+  style: propStyle,
+  onClick,
+  onDoubleClick,
+  cardStyle = 'filled',
+  disabled,
+  canMoveToFoundation
+}: CardProps) {
+  const { attributes, listeners, setNodeRef, transform, isDragging: dndIsDragging } = useDraggable({
     id: card.id,
-    disabled: disabled || (card.kind === 'dragon' && card.isLocked), // Disable drag if card is disabled or locked dragon
+    disabled: disabled || (card.kind === 'dragon' && card.isLocked),
   })
+
+  const isDragging = propIsDragging || dndIsDragging
 
   const style = {
     transform: CSS.Translate.toString(transform),
+    zIndex: isDragging ? 100 : undefined,
     ...propStyle,
   }
+
+  // ... getCardColors and getDragonIcon ...
 
   const getCardColors = (color: string) => {
     const isOutlined = cardStyle === 'outlined'
@@ -80,7 +97,7 @@ export function Card({ card, isDragging: propIsDragging, className, style: propS
 
       return (
         <div className={cn("w-full h-full flex flex-col justify-between p-1.5 rounded-md border-2",
-          (isDragging || propIsDragging) ? "border-current" : "border-transparent", // Only show border on drag
+          isDragging ? "border-current" : "border-transparent",
           colorClass
         )}>
           <div className="text-sm font-bold leading-none">{card.value}</div>
@@ -93,22 +110,18 @@ export function Card({ card, isDragging: propIsDragging, className, style: propS
     }
 
     if (card.kind === 'dragon') {
-      // Map colors to new visual requirements
-      // Green Dragon -> Cloud -> Sky Blue
-      // White Dragon -> Sparkles -> Orange
-      // Red Dragon -> Flame -> Red (unchanged)
       let displayColor: string = card.color
       if (card.color === 'green') displayColor = 'sky'
-      if (card.color === 'white') displayColor = 'white' // mapped to orange in getCardColors
+      if (card.color === 'white') displayColor = 'white'
 
       const colorClass = getCardColors(displayColor)
       const icon = getDragonIcon(card.color)
 
       return (
         <div className={cn("w-full h-full flex flex-col justify-between p-1.5 rounded-md border-2",
-          (isDragging || propIsDragging) ? "border-current" : "border-transparent",
+          isDragging ? "border-current" : "border-transparent",
           colorClass,
-          card.isLocked && "opacity-50 grayscale" // Visual indication for locked dragon
+          card.isLocked && "opacity-50 grayscale"
         )}>
           <div className="leading-none">{icon}</div>
           <div className="flex-1 flex items-center justify-center">
@@ -120,7 +133,6 @@ export function Card({ card, isDragging: propIsDragging, className, style: propS
     }
 
     if (card.kind === 'flower') {
-      // Flower -> Pink
       const isOutlined = cardStyle === 'outlined'
       const colorClass = isOutlined
         ? 'bg-white text-pink-600 border-pink-600'
@@ -128,7 +140,7 @@ export function Card({ card, isDragging: propIsDragging, className, style: propS
 
       return (
         <div className={cn("w-full h-full flex flex-col justify-between p-1.5 rounded-md border-2",
-          (isDragging || propIsDragging) ? "border-current" : "border-transparent",
+          isDragging ? "border-current" : "border-transparent",
           colorClass
         )}>
           <div className="leading-none"><Flower className="size-4" /></div>
@@ -142,21 +154,33 @@ export function Card({ card, isDragging: propIsDragging, className, style: propS
   }
 
   return (
-    <div
+    <motion.div
+      layoutId={card.id}
       ref={setNodeRef}
       {...listeners}
       {...attributes}
       className={cn(
-        "w-24 h-32 rounded-lg shadow-sm select-none relative overflow-hidden p-1 touch-none transition-opacity", // Removed bg-white/10
-        (isDragging || propIsDragging) ? "opacity-50 z-50" : "opacity-100",
-        (disabled || (card.kind === 'dragon' && card.isLocked)) && "cursor-default", // Dimmed if disabled
+        "w-24 h-32 rounded-lg shadow-sm select-none relative overflow-hidden p-1 touch-none transition-all",
+        // Opacity logic: If className has opacity-0, it wins. Otherwise, if dragging, opacity-50.
+        !className?.includes('opacity-0') && isDragging && "opacity-50 z-50",
+        (disabled || (card.kind === 'dragon' && card.isLocked)) && "cursor-default",
+        canMoveToFoundation && !isDragging && "shadow-[0_0_15px_rgba(250,204,21,0.8)] border-yellow-400",
         className
       )}
       style={style}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
+      initial={{ scale: 0.8, opacity: 0 }}
+      animate={{
+        scale: 1,
+        opacity: className?.includes('opacity-0') ? 0 : 1
+      }}
+      transition={{
+        layout: { duration: 0.2, type: "spring", bounce: 0.2 },
+        opacity: { duration: 0.2 }
+      }}
     >
       {renderContent()}
-    </div>
+    </motion.div>
   )
 }

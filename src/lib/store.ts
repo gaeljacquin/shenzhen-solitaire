@@ -146,12 +146,14 @@ export function moveCard(cardId: string, targetId: string) {
     if (!target) return state
 
     // Save history before mutation
-    const historyEntry: Omit<GameState, 'history' | 'status'> = {
+    const historyEntry: (Omit<GameState, 'history' | 'status'> & { isAuto?: boolean }) = {
         columns: state.columns,
         freeCells: state.freeCells,
         foundations: state.foundations,
         dragons: state.dragons,
-        devMode: state.devMode
+        devMode: state.devMode,
+        gameId: state.gameId,
+        isAuto: false
     }
 
     // 3. Execute Move with Validation
@@ -195,6 +197,9 @@ export function moveCard(cardId: string, targetId: string) {
       newColumns[target.index].push(...cardsToMove)
 
     } else if (target.type === 'free') {
+      // Check if target is locked dragon
+      if (state.freeCells[target.index]?.isLocked) return state
+
       // Can only move one card to free cell
       if (cardsToMove.length === 1 && (!newFreeCells[target.index] || state.devMode)) {
         newFreeCells[target.index] = cardsToMove[0]
@@ -298,12 +303,14 @@ export function collectDragons(color: DragonColor) {
         if (targetFreeIndex === -1) return state // No space to stack
 
         // Save history
-        const historyEntry: Omit<GameState, 'history' | 'status'> = {
+        const historyEntry: (Omit<GameState, 'history' | 'status'> & { isAuto?: boolean }) = {
             columns: state.columns,
             freeCells: state.freeCells,
             foundations: state.foundations,
             dragons: state.dragons,
-            devMode: state.devMode
+            devMode: state.devMode,
+            gameId: state.gameId,
+            isAuto: false
         }
 
         const newColumns = state.columns.map(col => [...col])
@@ -339,14 +346,27 @@ export function collectDragons(color: DragonColor) {
 export function undo() {
     gameStore.setState((state) => {
         if (state.history.length === 0) return state
-        const previous = state.history[state.history.length - 1]
-        const newHistory = state.history.slice(0, -1)
-        return {
+
+        const history = [...state.history]
+        let previous = history.pop()!
+        let newState = {
             ...state,
             ...previous,
-            history: newHistory,
-            status: 'playing'
+            history: history,
+            status: 'playing' as GameStatus
         }
+
+        // Recursive undo for auto-moves
+        while (previous.isAuto && history.length > 0) {
+            previous = history.pop()!
+            newState = {
+                ...newState,
+                ...previous,
+                history: history
+            }
+        }
+
+        return newState
     })
 }
 
@@ -368,7 +388,8 @@ export function newGame() {
         },
         status: 'playing',
         history: [],
-        devMode: s.devMode // Preserve dev mode
+        devMode: s.devMode, // Preserve dev mode
+        gameId: s.gameId + 1 // Increment game ID
     }))
 }
 
@@ -403,7 +424,7 @@ export function performWandMove() {
 
         let currentState = { ...state }
         let moved = true
-        let historyEntry: Omit<GameState, 'history' | 'status'> | null = null
+        let historyEntry: (Omit<GameState, 'history' | 'status'> & { isAuto?: boolean }) | null = null
 
         // Save history once at start if we are going to move anything
         // But we don't know if we will move anything yet.
@@ -474,7 +495,9 @@ export function performWandMove() {
                         freeCells: state.freeCells,
                         foundations: state.foundations,
                         dragons: state.dragons,
-                        devMode: state.devMode
+                        devMode: state.devMode,
+                        gameId: state.gameId,
+                        isAuto: false
                     }
                 }
 
@@ -524,22 +547,6 @@ export function performWandMove() {
 function autoMoveOnes(state: GameState): GameState {
     let currentState = { ...state }
     let moved = true
-    // We don't save history here because this function is called *inside* other actions
-    // which should have already saved history or will save it.
-    // Wait, if we call this after a move, we are modifying the state *again*.
-    // The history entry for the user's move is already pushed.
-    // If we auto-move, we should probably append another history entry or merge it?
-    // User requirement: "Undo Behavior: Auto-moves of '1's will be recorded as separate history entries."
-    // So we should push to history.
-
-    // BUT, we are inside a setState callback usually?
-    // No, we will call this helper at the end of `moveCard` and `collectDragons`.
-    // Those functions return a new state object.
-    // We can wrap the result.
-
-    // Actually, let's make `autoMoveOnes` recursive or iterative until no more 1s can move.
-    // And it should update history for each batch or single move?
-    // "Whenever a '1' card is available, move it to the foundation automatically."
 
     while (moved) {
         moved = false
@@ -563,15 +570,6 @@ function autoMoveOnes(state: GameState): GameState {
         })
 
         if (onesToMove.length > 0) {
-            // Save history for this batch
-            const historyEntry: Omit<GameState, 'history' | 'status'> = {
-                columns: currentState.columns,
-                freeCells: currentState.freeCells,
-                foundations: currentState.foundations,
-                dragons: currentState.dragons,
-                devMode: currentState.devMode
-            }
-
             const newColumns = currentState.columns.map(col => [...col])
             const newFreeCells = [...currentState.freeCells]
             const newFoundations = { ...currentState.foundations }
@@ -583,19 +581,34 @@ function autoMoveOnes(state: GameState): GameState {
                     newFreeCells[move.index] = null
                 }
                 // Update foundation
-                // We know it's a 1, so foundation must be 0.
-                // But wait, what if we have multiple 1s of same color? Impossible in standard deck.
                 if (move.card.kind === 'normal') {
                     newFoundations[move.card.color] = 1
                 }
             })
+
+            let newHistory = currentState.history
+
+            // Only record history if there is existing history (i.e. not the initial deal auto-move)
+            if (currentState.history.length > 0) {
+                 // Save history for this batch
+                const historyEntry: (Omit<GameState, 'history' | 'status'> & { isAuto?: boolean }) = {
+                    columns: currentState.columns,
+                    freeCells: currentState.freeCells,
+                    foundations: currentState.foundations,
+                    dragons: currentState.dragons,
+                    devMode: currentState.devMode,
+                    gameId: currentState.gameId,
+                    isAuto: true // Mark as auto-move
+                }
+                newHistory = [...currentState.history, historyEntry]
+            }
 
             currentState = {
                 ...currentState,
                 columns: newColumns,
                 freeCells: newFreeCells,
                 foundations: newFoundations,
-                history: [...currentState.history, historyEntry]
+                history: newHistory
             }
             moved = true
         }
@@ -614,4 +627,11 @@ export function toggleDevMode() {
         ...state,
         devMode: !state.devMode
     }))
+}
+
+export function triggerAutoMove() {
+    gameStore.setState(state => {
+        if (state.status !== 'playing' && !state.devMode) return state
+        return autoMoveOnes(state)
+    })
 }

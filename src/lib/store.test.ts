@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { gameStore, moveCard, collectDragons, undo, pauseGame, resumeGame, newGame, GameStatus, performWandMove } from './store'
+import { gameStore, moveCard, collectDragons, undo, pauseGame, resumeGame, newGame, GameStatus, performWandMove, triggerAutoMove } from './store'
 import { Card } from './types'
 
 // Helper to reset store for tests
@@ -184,6 +184,128 @@ describe('Shenzhen Solitaire Store', () => {
         expect(state.foundations.purple).toBe(2)
         expect(state.foundations.indigo).toBe(2)
         expect(state.columns[0].length).toBe(0)
+    })
+
+    it('triggerAutoMove moves ones', () => {
+        const store = gameStore
+        store.setState({
+            ...store.state,
+            freeCells: [{ id: 'normal-green-1', kind: 'normal', color: 'green', value: 1 }, null, null],
+            foundations: { green: 0, purple: 0, indigo: 0, flower: false },
+            status: 'playing'
+        })
+
+        triggerAutoMove()
+
+        expect(gameStore.state.foundations.green).toBe(1)
+    })
+
+    it('prevents moving card onto locked dragon', () => {
+        const store = gameStore
+        store.setState({
+            ...store.state,
+            freeCells: [{ id: 'dragon-green-locked', kind: 'dragon', color: 'green', isLocked: true }, null, null],
+            columns: [[{ id: 'normal-green-9', kind: 'normal', color: 'green', value: 9 }]]
+        })
+
+        moveCard('normal-green-9', 'free-0')
+
+        // Should not move
+        expect(store.state.columns[0].length).toBe(1)
+        expect(store.state.freeCells[0]?.isLocked).toBe(true)
+    })
+
+    it('undo reverts auto-moves together with manual move', () => {
+        const store = gameStore
+        // Setup: '1' in column, ready to move. User moves a card to expose it.
+        // We need a '1' that is NOT at the top.
+        // Col 0: [Card A, Card 1] -> No, 1 must be at top to move.
+        // Scenario:
+        // Col 0: [Card 1]
+        // Col 1: [Card 2]
+        // Move Card 2 to somewhere? No.
+        // Scenario:
+        // Col 0: [Card 1]
+        // But 1s auto move immediately.
+        // We need a move that *triggers* an auto move.
+        // Example: 1 is in a column, but blocked by another card?
+        // No, only top cards move.
+        // So 1 must be covered.
+        // Col 0: [Card 1, Card A]
+        // Move Card A to another column.
+        // Then Card 1 is exposed and auto-moves.
+
+        store.setState({
+            ...store.state,
+            columns: [
+                [{ id: 'normal-green-1', kind: 'normal', color: 'green', value: 1 }, { id: 'normal-red-9', kind: 'normal', color: 'red', value: 9 }],
+                [], // Empty col to move to
+                [], [], [], [], [], []
+            ],
+            foundations: { green: 0, purple: 0, indigo: 0, flower: false },
+            history: []
+        })
+
+        // Move Card A (red-9) to Col 1
+        moveCard('normal-red-9', 'col-1')
+
+        // Expect:
+        // 1. Red-9 moved to Col 1
+        // 2. Green-1 exposed and auto-moved to foundation
+        expect(store.state.columns[1].length).toBe(1) // Red-9
+        expect(store.state.foundations.green).toBe(1) // Green-1
+        expect(store.state.columns[0].length).toBe(0) // Empty
+
+        // Undo
+        undo()
+
+        // Expect:
+        // Both moves reverted.
+        // Col 0: [Green-1, Red-9]
+        // Col 1: []
+        // Foundation: 0
+        expect(store.state.foundations.green).toBe(0)
+        expect(store.state.columns[1].length).toBe(0)
+        expect(store.state.columns[0].length).toBe(2)
+        expect(store.state.columns[0][0].id).toBe('normal-green-1')
+        expect(store.state.columns[0][1].id).toBe('normal-red-9')
+    })
+
+    it('prevents moving card onto locked dragon even in dev mode', () => {
+        const store = gameStore
+        store.setState({
+            ...store.state,
+            devMode: true,
+            freeCells: [{ id: 'dragon-green-locked', kind: 'dragon', color: 'green', isLocked: true }, null, null],
+            columns: [[{ id: 'normal-green-9', kind: 'normal', color: 'green', value: 9 }]]
+        })
+
+        moveCard('normal-green-9', 'free-0')
+
+        // Should not move
+        expect(store.state.columns[0].length).toBe(1)
+        expect(store.state.freeCells[0]?.isLocked).toBe(true)
+    })
+
+    it('initial auto-move does not enable undo', () => {
+        const store = gameStore
+        // Setup state as if new game just started (history empty) but with a '1' ready to move
+        store.setState({
+            ...store.state,
+            history: [],
+            status: 'playing',
+            freeCells: [{ id: 'normal-green-1', kind: 'normal', color: 'green', value: 1 }, null, null],
+            foundations: { green: 0, purple: 0, indigo: 0, flower: false }
+        })
+
+        // Trigger auto move
+        triggerAutoMove()
+
+        // Expect foundation to be updated
+        expect(store.state.foundations.green).toBe(1)
+
+        // Expect history to still be empty
+        expect(store.state.history.length).toBe(0)
     })
 
     it('dev mode allows illegal moves', () => {
