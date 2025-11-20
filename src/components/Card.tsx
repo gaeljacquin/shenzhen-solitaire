@@ -13,12 +13,13 @@ interface CardProps {
   onClick?: () => void
   cardStyle?: 'filled' | 'outlined'
   disabled?: boolean
+  onDoubleClick?: () => void
 }
 
-export function Card({ card, isDragging: propIsDragging, className, style: propStyle, onClick, cardStyle = 'filled', disabled }: CardProps) {
+export function Card({ card, isDragging: propIsDragging, className, style: propStyle, onClick, onDoubleClick, cardStyle = 'filled', disabled }: CardProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: card.id,
-    disabled: disabled, // Disable drag if card is disabled
+    disabled: disabled || (card.kind === 'dragon' && card.isLocked), // Disable drag if card is disabled or locked dragon
   })
 
   const style = {
@@ -106,7 +107,8 @@ export function Card({ card, isDragging: propIsDragging, className, style: propS
       return (
         <div className={cn("w-full h-full flex flex-col justify-between p-1.5 rounded-md border-2",
           (isDragging || propIsDragging) ? "border-current" : "border-transparent",
-          colorClass
+          colorClass,
+          card.isLocked && "opacity-50 grayscale" // Visual indication for locked dragon
         )}>
           <div className="leading-none">{icon}</div>
           <div className="flex-1 flex items-center justify-center">
@@ -147,11 +149,12 @@ export function Card({ card, isDragging: propIsDragging, className, style: propS
       className={cn(
         "w-24 h-32 rounded-lg shadow-sm select-none relative overflow-hidden p-1 touch-none transition-opacity", // Removed bg-white/10
         (isDragging || propIsDragging) ? "opacity-50 z-50" : "opacity-100",
-        disabled && "opacity-60 cursor-default", // Dimmed if disabled
+        (disabled || (card.kind === 'dragon' && card.isLocked)) && "cursor-default", // Dimmed if disabled
         className
       )}
       style={style}
       onClick={onClick}
+      onDoubleClick={onDoubleClick}
     >
       {renderContent()}
     </div>

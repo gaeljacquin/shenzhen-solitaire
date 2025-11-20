@@ -1,13 +1,14 @@
 import React from 'react'
 import { useStore } from '@tanstack/react-store'
-import { gameStore, moveCard } from '../lib/store'
+import { gameStore, moveCard, performWandMove } from '../lib/store'
 import { Card } from './Card'
 import { ControlPanel } from './ControlPanel'
-import { Cloud, Flame, Sparkles, Flower } from 'lucide-react'
+import { Flower, Wand2 } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { DndContext, DragEndEvent, DragStartEvent, useSensor, useSensors, PointerSensor, useDroppable, DragOverlay } from '@dnd-kit/core'
 import { Card as CardType } from '../lib/types'
 import Rules from './Rules'
+import { DragonButton } from './DragonButton'
 
 function DroppableZone({ id, children, className }: { id: string, children: React.ReactNode, className?: string }) {
   const { setNodeRef, isOver } = useDroppable({ id })
@@ -33,6 +34,55 @@ export function GameBoard() {
 
   const [activeId, setActiveId] = React.useState<string | null>(null)
   const [draggedStack, setDraggedStack] = React.useState<CardType[]>([])
+
+  // Check if flower is available to be moved (top of column or in free cell)
+  const isFlowerAvailable = React.useMemo(() => {
+    if (state.foundations.flower) return false
+    // Check free cells
+    if (state.freeCells.some(c => c?.kind === 'flower')) return true
+    // Check columns
+    return state.columns.some(col => col.length > 0 && col[col.length - 1].kind === 'flower')
+  }, [state.freeCells, state.columns, state.foundations.flower])
+
+  const isWandActive = React.useMemo(() => {
+    // Check if next rank is ready to move
+    const { foundations, columns, freeCells } = state
+    const minFoundation = Math.min(foundations.green, foundations.purple, foundations.indigo)
+    const nextRank = minFoundation + 1
+
+    if (nextRank > 9) return false
+
+    const colors: ('green' | 'purple' | 'indigo')[] = ['green', 'purple', 'indigo']
+    let allAvailable = true
+
+    for (const color of colors) {
+      if (foundations[color] >= nextRank) continue
+
+      let found = false
+
+      // Check free cells
+      if (freeCells.some(c => c?.kind === 'normal' && c.color === color && c.value === nextRank)) {
+        found = true
+      } else {
+        // Check columns (top only)
+        for (const col of columns) {
+          if (col.length > 0) {
+            const card = col[col.length - 1]
+            if (card.kind === 'normal' && card.color === color && card.value === nextRank) {
+              found = true
+              break
+            }
+          }
+        }
+      }
+
+      if (!found) {
+        allAvailable = false
+        break
+      }
+    }
+    return allAvailable
+  }, [state.foundations, state.columns, state.freeCells])
 
   function handleDragStart(event: DragStartEvent) {
     const { active } = event
@@ -70,6 +120,12 @@ export function GameBoard() {
     }
   }
 
+  const handleCardDoubleClick = (card: CardType) => {
+    if (card.kind === 'flower') {
+      moveCard(card.id, 'foundation-flower')
+    }
+  }
+
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="w-full max-w-7xl mx-auto p-4 flex flex-col items-center min-h-screen">
@@ -95,7 +151,13 @@ export function GameBoard() {
           <div className="flex gap-2">
             {state.freeCells.map((card, i) => (
               <DroppableZone key={`free-${i}`} id={`free-${i}`} className="w-24 h-32 border-2 border-slate-700 rounded-lg bg-slate-800/30 flex items-center justify-center">
-                {card && <Card card={card} cardStyle={cardStyle} />}
+                {card && (
+                  <Card
+                    card={card}
+                    cardStyle={cardStyle}
+                    onDoubleClick={() => handleCardDoubleClick(card)}
+                  />
+                )}
               </DroppableZone>
             ))}
           </div>
@@ -107,12 +169,12 @@ export function GameBoard() {
               id="foundation-flower"
               className={cn(
                 "w-24 h-32 border-2 border-slate-700 rounded-lg bg-slate-800/30 flex items-center justify-center relative transition-all duration-300",
-                isGlowEnabled && "shadow-[0_0_15px_rgba(236,72,153,0.6)] border-pink-500/50" // Added glow
+                (isGlowEnabled || isFlowerAvailable) && "shadow-[0_0_15px_rgba(236,72,153,0.6)] border-pink-500/50" // Added glow logic
               )}
             >
               <Flower className={cn(
                 "text-slate-700/50 absolute size-8",
-                isGlowEnabled && "text-pink-500/50"
+                (isGlowEnabled || isFlowerAvailable) && "text-pink-500/50"
               )} />
               {state.foundations.flower && (
                 <Card
@@ -125,28 +187,47 @@ export function GameBoard() {
 
             {/* Dragon Buttons (Bottom) */}
             <div className="flex gap-2">
-              <DragonButton color="green" icon={<Cloud className="size-5" />} isGlowEnabled={isGlowEnabled} />
-              <DragonButton color="red" icon={<Flame className="size-5" />} isGlowEnabled={isGlowEnabled} />
-              <DragonButton color="white" icon={<Sparkles className="size-5" />} isGlowEnabled={isGlowEnabled} />
+              <DragonButton color="green" />
+              <DragonButton color="red" />
+              <DragonButton color="white" />
             </div>
           </div>
 
           {/* Foundations (Top Right) */}
-          <div className="flex gap-2">
-            {/* Numbered Foundations */}
-            {['green', 'purple', 'indigo'].map((color) => (
-              <DroppableZone key={color} id={`foundation-${color}`} className="w-24 h-32 border-2 border-slate-700 rounded-lg bg-slate-800/30 flex items-center justify-center relative">
-                <div className={cn("absolute inset-0 opacity-20 rounded-sm",
-                  color === 'green' && "bg-emerald-600",
-                  color === 'purple' && "bg-purple-900",
-                  color === 'indigo' && "bg-indigo-900"
-                )} />
-                {/* Placeholder for foundation top card */}
-                <div className="text-slate-500 font-bold text-3xl opacity-70">
-                  {state.foundations[color as keyof typeof state.foundations] || ''}
-                </div>
-              </DroppableZone>
-            ))}
+          <div className="flex flex-col gap-2 items-end">
+            <div className="flex gap-2">
+              {/* Numbered Foundations */}
+              {['green', 'purple', 'indigo'].map((color) => (
+                <DroppableZone key={color} id={`foundation-${color}`} className="w-24 h-32 border-2 border-slate-700 rounded-lg bg-slate-800/30 flex items-center justify-center relative">
+                  <div className={cn("absolute inset-0 opacity-20 rounded-sm",
+                    color === 'green' && "bg-emerald-600",
+                    color === 'purple' && "bg-purple-900",
+                    color === 'indigo' && "bg-indigo-900"
+                  )} />
+                  {/* Placeholder for foundation top card */}
+                  <div className="text-slate-500 font-bold text-3xl opacity-70">
+                    {state.foundations[color as keyof typeof state.foundations] || ''}
+                  </div>
+                </DroppableZone>
+              ))}
+            </div>
+
+            {/* Auto-Complete Button */}
+            <div className="flex gap-2">
+              <button
+                className={cn(
+                  "w-16 h-12 rounded-md border-2 flex items-center justify-center transition-all duration-100 mt-2",
+                  isWandActive
+                    ? "bg-cyan-900/50 border-cyan-500 text-cyan-400 hover:bg-cyan-800 hover:text-white shadow-[0_0_10px_rgba(34,211,238,0.3)] cursor-pointer"
+                    : "border-slate-700 text-slate-600 cursor-not-allowed opacity-50"
+                )}
+                onClick={() => isWandActive && performWandMove()}
+                disabled={!isWandActive}
+                title="Auto-Complete"
+              >
+                <Wand2 className="size-5" />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -168,6 +249,7 @@ export function GameBoard() {
                       card={card}
                       cardStyle={cardStyle}
                       className={isBeingDragged ? "opacity-0" : ""} // Hide dragged cards
+                      onDoubleClick={() => handleCardDoubleClick(card)}
                     />
                   </div>
                 )
@@ -187,38 +269,5 @@ export function GameBoard() {
         <Rules />
       </div>
     </DndContext>
-  )
-}
-
-function DragonButton({ color, icon, isGlowEnabled }: { color: string, icon: React.ReactNode, isGlowEnabled: boolean }) {
-  const getStyles = () => {
-    // Background colors matching cards
-    const base = "w-16 h-12 rounded-md border-2 flex items-center justify-center transition-all duration-100 active:scale-95 active:brightness-90" // Added active styles
-
-    if (color === 'green') { // Sky Blue
-      return cn(base, "bg-sky-500 border-sky-600 text-white",
-        !isGlowEnabled && "opacity-30 grayscale",
-        isGlowEnabled && "shadow-[0_0_15px_rgba(14,165,233,0.6)]"
-      )
-    }
-    if (color === 'red') {
-      return cn(base, "bg-red-600 border-red-700 text-white",
-        !isGlowEnabled && "opacity-30 grayscale",
-        isGlowEnabled && "shadow-[0_0_15px_rgba(220,38,38,0.6)]"
-      )
-    }
-    if (color === 'white') { // Orange
-      return cn(base, "bg-orange-500 border-orange-600 text-white",
-        !isGlowEnabled && "opacity-30 grayscale",
-        isGlowEnabled && "shadow-[0_0_15px_rgba(249,115,22,0.6)]"
-      )
-    }
-    return base
-  }
-
-  return (
-    <button className={getStyles()}>
-      {icon}
-    </button>
   )
 }

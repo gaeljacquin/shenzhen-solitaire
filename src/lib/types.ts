@@ -3,7 +3,7 @@ export type DragonColor = 'green' | 'red' | 'white'
 
 export type Card =
   | { id: string; kind: 'normal'; color: CardColor; value: number }
-  | { id: string; kind: 'dragon'; color: DragonColor }
+  | { id: string; kind: 'dragon'; color: DragonColor; isLocked?: boolean }
   | { id: string; kind: 'flower' }
 
 export interface CardProps {
