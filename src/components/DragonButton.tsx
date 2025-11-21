@@ -45,7 +45,6 @@ export function DragonButton({ color }: DragonButtonProps) {
 
     if (locations.length !== 4 && !devMode) return false
 
-    // Check for free cell availability
     let targetFreeIndex = -1
     for (const loc of locations) {
       if (loc.type === 'free') {
@@ -64,7 +63,7 @@ export function DragonButton({ color }: DragonButtonProps) {
     switch (color) {
       case 'green': return <Circle className="size-5 fill-current" />
       case 'red': return <Square className="size-5 fill-current" />
-      case 'yellow': return <Diamond className="size-5 fill-current" />
+      case 'black': return <Diamond className="size-5 fill-current" />
     }
   }
 
@@ -76,16 +75,14 @@ export function DragonButton({ color }: DragonButtonProps) {
     }
 
     if (!canCollect) {
-      // Dimmed version of the color
       if (color === 'green') return cn(base, "bg-emerald-900/30 border-emerald-900/50 text-emerald-700 cursor-not-allowed")
       if (color === 'red') return cn(base, "bg-red-900/30 border-red-900/50 text-red-700 cursor-not-allowed")
-      if (color === 'yellow') return cn(base, "bg-black/30 border-black/50 text-black/70 cursor-not-allowed")
+      if (color === 'black') return cn(base, "bg-black/30 border-black/50 text-black/70 cursor-not-allowed")
     }
 
-    // Active state
     if (color === 'green') return cn(base, "bg-emerald-500 border-emerald-600 text-white shadow-[0_0_15px_rgba(16,185,129,0.6)] cursor-pointer hover:bg-emerald-400")
     if (color === 'red') return cn(base, "bg-red-600 border-red-700 text-white shadow-[0_0_15px_rgba(220,38,38,0.6)] cursor-pointer hover:bg-red-500")
-    if (color === 'yellow') return cn(base, "bg-black border-black text-white shadow-[0_0_15px_rgba(0,0,0,0.6)] cursor-pointer hover:bg-gray-800")
+    if (color === 'black') return cn(base, "bg-black border-black text-white shadow-[0_0_15px_rgba(0,0,0,0.6)] cursor-pointer hover:bg-gray-800")
 
     return base
   }

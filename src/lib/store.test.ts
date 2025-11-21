@@ -95,7 +95,7 @@ describe('Shenzhen Solitaire Store', () => {
             ...s,
             columns: [[dragons[0]], [dragons[1]], [dragons[2]], [], [], [], [], []],
             freeCells: [dragons[3], null, null],
-            dragons: { green: 0, red: 0, yellow: 0 }
+            dragons: { green: 0, red: 0, black: 0 }
         }))
 
         collectDragons('green')
@@ -108,7 +108,9 @@ describe('Shenzhen Solitaire Store', () => {
 
         const lockedCell = state.freeCells.find(c => c?.kind === 'dragon' && (c as any).isLocked)
         expect(lockedCell).toBeDefined()
-        expect(lockedCell?.color).toBe('green')
+        if (lockedCell && lockedCell.kind === 'dragon') {
+            expect(lockedCell.color).toBe('green')
+        }
     })
 
     it('collects dragons to leftmost free cell', () => {
@@ -119,7 +121,7 @@ describe('Shenzhen Solitaire Store', () => {
             ...s,
             columns: [[dragons[0]], [dragons[1]], [], [], [], [], [], []],
             freeCells: [dragons[2], null, dragons[3]],
-            dragons: { green: 0, red: 0, yellow: 0 }
+            dragons: { green: 0, red: 0, black: 0 }
         }))
 
         collectDragons('green')
@@ -235,7 +237,9 @@ describe('Shenzhen Solitaire Store', () => {
         const lockedCell = state.freeCells.find(c => c?.kind === 'dragon' && (c as any).isLocked)
         expect(lockedCell).toBeDefined()
         expect(lockedCell?.kind).toBe('dragon')
-        expect(lockedCell?.color).toBe('green')
+        if (lockedCell && lockedCell.kind === 'dragon') {
+            expect(lockedCell.color).toBe('green')
+        }
 
         // Other dragons should be gone
         expect(state.columns[0].length).toBe(0)
@@ -309,14 +313,15 @@ describe('Shenzhen Solitaire Store', () => {
             columns: [[{ id: 'normal-green-1', kind: 'normal', color: 'green', value: 1 }]],
             freeCells: [null, null, null],
             foundations: { green: 0, red: 0, black: 0, flower: false },
-            dragons: { green: 0, red: 0, yellow: 0 },
+            dragons: { green: 0, red: 0, black: 0 },
             status: 'playing',
             history: [],
             devMode: false,
             gameId: 1,
             startTime: null,
             elapsedTime: 0,
-            timerRunning: false
+            timerRunning: false,
+            isTimerVisible: true
         })
 
         // Trigger auto move (simulate what happens after deal)

@@ -44,7 +44,6 @@ export function Card({
 
   const getCardColors = (color: string) => {
     const isOutlined = cardStyle === 'outlined'
-    // Beige background for outlined cards
     const bgClass = isOutlined ? 'bg-[#FDF6E3]' : ''
 
     switch (color) {
@@ -52,15 +51,11 @@ export function Card({
         return isOutlined
           ? `${bgClass} text-emerald-600 border-emerald-600`
           : 'bg-emerald-600 text-white border-emerald-700'
-      case 'red': // Replaces Purple
+      case 'red':
         return isOutlined
           ? `${bgClass} text-red-600 border-red-600`
           : 'bg-red-600 text-white border-red-700'
-      case 'black': // Replaces Indigo
-        return isOutlined
-          ? `${bgClass} text-black border-black`
-          : 'bg-black text-white border-black'
-      case 'yellow': // Replaces White/Orange
+      case 'black':
         return isOutlined
           ? `${bgClass} text-black border-black`
           : 'bg-black text-white border-black'
@@ -72,11 +67,11 @@ export function Card({
   const getDragonIcon = (color: string) => {
     switch (color) {
       case 'green':
-        return <Circle className="size-4 fill-current" /> // Green Circle
+        return <Circle className="size-4 fill-current" />
       case 'red':
-        return <Square className="size-4 fill-current" /> // Red Square
-      case 'yellow':
-        return <Diamond className="size-4 fill-current" /> // Yellow Diamond
+        return <Square className="size-4 fill-current" />
+      case 'black':
+        return <Diamond className="size-4 fill-current" />
       default:
         return null
     }

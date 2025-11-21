@@ -15,18 +15,32 @@ export const Route = createRootRoute({
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'TanStack Start Starter',
+        title: 'Shenzhen Solitaire',
       },
     ],
   }),
+
+  notFoundComponent: () => {
+    return (
+      <div className="min-h-screen bg-[#2d5a3d] text-white flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-4xl font-bold mb-4">404 - Page Not Found</h1>
+          <p className="text-lg">The page you're looking for doesn't exist.</p>
+        </div>
+      </div>
+    )
+  },
 
   shellComponent: RootDocument,
 })
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body>
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <title>Shenzhen Solitaire</title>
+      </head>
+      <body suppressHydrationWarning>
         {children}
         <TanStackDevtools
           config={{
