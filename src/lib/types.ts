@@ -1,5 +1,5 @@
-export type CardColor = 'green' | 'purple' | 'indigo'
-export type DragonColor = 'green' | 'red' | 'white'
+export type CardColor = 'green' | 'red' | 'black'
+export type DragonColor = 'green' | 'red' | 'yellow'
 
 export type Card =
   | { id: string; kind: 'normal'; color: CardColor; value: number }

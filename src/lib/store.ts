@@ -8,25 +8,30 @@ interface GameState {
   freeCells: (Card | null)[]
   foundations: {
     green: number
-    purple: number
-    indigo: number
+    red: number
+    black: number
     flower: boolean
   }
   dragons: {
     green: number // count of collected dragons
     red: number
-    white: number
+    yellow: number
   }
   status: GameStatus
-  history: Omit<GameState, 'history' | 'status'>[]
+  history: (Omit<GameState, 'history' | 'status'> & { isAuto?: boolean })[]
   devMode: boolean
+  gameId: number
+  startTime: number | null
+  elapsedTime: number
+  timerRunning: boolean
+  isTimerVisible: boolean
 }
 
 function createDeck(): Card[] {
   const deck: Card[] = []
 
   // Normal cards
-  const colors: CardColor[] = ['green', 'purple', 'indigo']
+  const colors: CardColor[] = ['green', 'red', 'black']
   colors.forEach(color => {
     for (let i = 1; i <= 9; i++) {
       deck.push({ id: `normal-${color}-${i}`, kind: 'normal', color, value: i })
@@ -34,7 +39,7 @@ function createDeck(): Card[] {
   })
 
   // Dragon cards
-  const dragonColors: DragonColor[] = ['green', 'red', 'white']
+  const dragonColors: DragonColor[] = ['green', 'red', 'yellow']
   dragonColors.forEach(color => {
     for (let i = 0; i < 4; i++) {
       deck.push({ id: `dragon-${color}-${i}`, kind: 'dragon', color })
@@ -77,18 +82,23 @@ export const gameStore = new Store<GameState>({
   freeCells: initialStateData.freeCells,
   foundations: {
     green: 0,
-    purple: 0,
-    indigo: 0,
+    red: 0,
+    black: 0,
     flower: false
   },
   dragons: {
     green: 0,
     red: 0,
-    white: 0
+    yellow: 0
   },
   status: 'playing',
   history: [],
-  devMode: false
+  devMode: false,
+  gameId: 0,
+  startTime: null,
+  elapsedTime: 0,
+  timerRunning: false,
+  isTimerVisible: true
 })
 
 // Helper to check if a move is valid between cards
@@ -102,6 +112,14 @@ function canStack(bottomCard: Card, topCard: Card): boolean {
 export function moveCard(cardId: string, targetId: string) {
   gameStore.setState((state) => {
     if (state.status !== 'playing' && !state.devMode) return state
+
+    // Start timer on first move if not running
+    let timerRunning = state.timerRunning
+    let startTime = state.startTime
+    if (!timerRunning && state.status === 'playing') {
+        timerRunning = true
+        startTime = Date.now() - state.elapsedTime
+    }
 
     // 1. Find the card and its current location
     let card: Card | undefined
@@ -153,6 +171,10 @@ export function moveCard(cardId: string, targetId: string) {
         dragons: state.dragons,
         devMode: state.devMode,
         gameId: state.gameId,
+        startTime: state.startTime,
+        elapsedTime: state.elapsedTime,
+        timerRunning: state.timerRunning,
+        isTimerVisible: state.isTimerVisible,
         isAuto: false
     }
 
@@ -198,7 +220,8 @@ export function moveCard(cardId: string, targetId: string) {
 
     } else if (target.type === 'free') {
       // Check if target is locked dragon
-      if (state.freeCells[target.index]?.isLocked) return state
+      const targetCard = state.freeCells[target.index]
+      if (targetCard?.kind === 'dragon' && targetCard.isLocked) return state
 
       // Can only move one card to free cell
       if (cardsToMove.length === 1 && (!newFreeCells[target.index] || state.devMode)) {
@@ -214,9 +237,9 @@ export function moveCard(cardId: string, targetId: string) {
           if (target.id === 'flower' && c.kind === 'flower') {
               newFoundations.flower = true
           } else if (c.kind === 'normal' && c.color === target.id) {
-              const currentVal = newFoundations[target.id as 'green'|'purple'|'indigo']
+              const currentVal = newFoundations[target.id as 'green'|'red'|'black']
               if (c.value === currentVal + 1 || state.devMode) { // Allow skipping values in dev mode
-                  newFoundations[target.id as 'green'|'purple'|'indigo'] = c.value
+                  newFoundations[target.id as 'green'|'red'|'black'] = c.value
               } else {
                   return state
               }
@@ -230,8 +253,9 @@ export function moveCard(cardId: string, targetId: string) {
 
     // Check win condition
     let status: GameStatus = state.status
-    if (newFoundations.green === 9 && newFoundations.purple === 9 && newFoundations.indigo === 9 && newFoundations.flower) {
+    if (newFoundations.green === 9 && newFoundations.red === 9 && newFoundations.black === 9 && newFoundations.flower) {
         status = 'won'
+        timerRunning = false // Stop timer on win
     }
 
     const nextState = {
@@ -240,7 +264,9 @@ export function moveCard(cardId: string, targetId: string) {
       freeCells: newFreeCells,
       foundations: newFoundations,
       history: [...state.history, historyEntry],
-      status
+      status,
+      timerRunning,
+      startTime
     }
 
     return autoMoveOnes(nextState)
@@ -310,6 +336,10 @@ export function collectDragons(color: DragonColor) {
             dragons: state.dragons,
             devMode: state.devMode,
             gameId: state.gameId,
+            startTime: state.startTime,
+            elapsedTime: state.elapsedTime,
+            timerRunning: state.timerRunning,
+            isTimerVisible: state.isTimerVisible,
             isAuto: false
         }
 
@@ -353,7 +383,17 @@ export function undo() {
             ...state,
             ...previous,
             history: history,
-            status: 'playing' as GameStatus
+            status: 'playing' as GameStatus,
+            timerRunning: true, // Resume timer on undo if it was playing? Or just keep it running?
+            // Actually, if we undo a win, we should resume.
+            // If we undo a move, we just keep running.
+            // But we don't track timer state in history fully (we track snapshot).
+            // Let's just say if status becomes playing, timer runs.
+            isTimerVisible: state.isTimerVisible // Preserve current visibility preference
+        }
+
+        if (newState.status === 'playing') {
+            newState.timerRunning = true
         }
 
         // Recursive undo for auto-moves
@@ -362,7 +402,8 @@ export function undo() {
             newState = {
                 ...newState,
                 ...previous,
-                history: history
+                history: history,
+                isTimerVisible: state.isTimerVisible // Preserve current visibility preference
             }
         }
 
@@ -377,19 +418,23 @@ export function newGame() {
         freeCells: newState.freeCells,
         foundations: {
             green: 0,
-            purple: 0,
-            indigo: 0,
+            red: 0,
+            black: 0,
             flower: false
         },
         dragons: {
             green: 0,
             red: 0,
-            white: 0
+            yellow: 0
         },
         status: 'playing',
         history: [],
         devMode: s.devMode, // Preserve dev mode
-        gameId: s.gameId + 1 // Increment game ID
+        gameId: s.gameId + 1, // Increment game ID
+        startTime: null,
+        elapsedTime: 0,
+        timerRunning: false,
+        isTimerVisible: s.isTimerVisible // Preserve visibility setting
     }))
 }
 
@@ -400,14 +445,18 @@ export function restartGame() {
 export function pauseGame() {
     gameStore.setState(state => ({
         ...state,
-        status: state.status === 'paused' ? 'playing' : 'paused'
+        ...state,
+        status: state.status === 'paused' ? 'playing' : 'paused',
+        timerRunning: state.status === 'paused' // If paused -> playing, run. If playing -> paused, stop.
     }))
 }
 
 export function resumeGame() {
     gameStore.setState(state => ({
         ...state,
-        status: 'playing'
+        status: 'playing',
+        timerRunning: true,
+        startTime: Date.now() - state.elapsedTime
     }))
 }
 
@@ -438,13 +487,13 @@ export function performWandMove() {
             // Actually, we should check 1s too just in case, but they should be gone.
 
             // Check foundations levels
-            const minFoundation = Math.min(currentState.foundations.green, currentState.foundations.purple, currentState.foundations.indigo)
+            const minFoundation = Math.min(currentState.foundations.green, currentState.foundations.red, currentState.foundations.black)
             const nextRank = minFoundation + 1
 
             if (nextRank > 9) break
 
             // Check if all cards of nextRank are available
-            const colors: CardColor[] = ['green', 'purple', 'indigo']
+            const colors: CardColor[] = ['green', 'red', 'black']
             let allAvailable = true
             const locations: { id: string, source: 'col' | 'free', index: number, color: CardColor }[] = []
 
@@ -497,6 +546,10 @@ export function performWandMove() {
                         dragons: state.dragons,
                         devMode: state.devMode,
                         gameId: state.gameId,
+                        startTime: state.startTime,
+                        elapsedTime: state.elapsedTime,
+                        timerRunning: state.timerRunning,
+                        isTimerVisible: state.isTimerVisible,
                         isAuto: false
                     }
                 }
@@ -527,7 +580,7 @@ export function performWandMove() {
         if (historyEntry) {
              // Check win condition
             let status: GameStatus = currentState.status
-            if (currentState.foundations.green === 9 && currentState.foundations.purple === 9 && currentState.foundations.indigo === 9 && currentState.foundations.flower) {
+            if (currentState.foundations.green === 9 && currentState.foundations.red === 9 && currentState.foundations.black === 9 && currentState.foundations.flower) {
                 status = 'won'
             }
 
@@ -543,38 +596,40 @@ export function performWandMove() {
     })
 }
 
-// Helper to auto-move '1's
+// Helper to auto-move '1's and Flower
 function autoMoveOnes(state: GameState): GameState {
     let currentState = { ...state }
     let moved = true
 
     while (moved) {
         moved = false
-        const onesToMove: { source: 'col' | 'free', index: number, card: Card }[] = []
+        const moves: { source: 'col' | 'free', index: number, card: Card }[] = []
 
-        // Find available 1s
+        // Find available 1s and Flower
         // Check free cells
         currentState.freeCells.forEach((c, i) => {
-            if (c && c.kind === 'normal' && c.value === 1) {
-                onesToMove.push({ source: 'free', index: i, card: c })
+            if (c) {
+                if ((c.kind === 'normal' && c.value === 1) || c.kind === 'flower') {
+                    moves.push({ source: 'free', index: i, card: c })
+                }
             }
         })
         // Check columns
         currentState.columns.forEach((col, i) => {
             if (col.length > 0) {
                 const c = col[col.length - 1]
-                if (c.kind === 'normal' && c.value === 1) {
-                    onesToMove.push({ source: 'col', index: i, card: c })
+                if ((c.kind === 'normal' && c.value === 1) || c.kind === 'flower') {
+                    moves.push({ source: 'col', index: i, card: c })
                 }
             }
         })
 
-        if (onesToMove.length > 0) {
+        if (moves.length > 0) {
             const newColumns = currentState.columns.map(col => [...col])
             const newFreeCells = [...currentState.freeCells]
             const newFoundations = { ...currentState.foundations }
 
-            onesToMove.forEach(move => {
+            moves.forEach(move => {
                 if (move.source === 'col') {
                     newColumns[move.index].pop()
                 } else {
@@ -583,6 +638,8 @@ function autoMoveOnes(state: GameState): GameState {
                 // Update foundation
                 if (move.card.kind === 'normal') {
                     newFoundations[move.card.color] = 1
+                } else if (move.card.kind === 'flower') {
+                    newFoundations.flower = true
                 }
             })
 
@@ -598,6 +655,10 @@ function autoMoveOnes(state: GameState): GameState {
                     dragons: currentState.dragons,
                     devMode: currentState.devMode,
                     gameId: currentState.gameId,
+                    startTime: currentState.startTime,
+                    elapsedTime: currentState.elapsedTime,
+                    timerRunning: currentState.timerRunning,
+                    isTimerVisible: currentState.isTimerVisible,
                     isAuto: true // Mark as auto-move
                 }
                 newHistory = [...currentState.history, historyEntry]
@@ -615,8 +676,9 @@ function autoMoveOnes(state: GameState): GameState {
     }
 
     // Check win condition
-    if (currentState.foundations.green === 9 && currentState.foundations.purple === 9 && currentState.foundations.indigo === 9 && currentState.foundations.flower) {
+    if (currentState.foundations.green === 9 && currentState.foundations.red === 9 && currentState.foundations.black === 9 && currentState.foundations.flower) {
         currentState.status = 'won'
+        currentState.timerRunning = false
     }
 
     return currentState
@@ -632,6 +694,28 @@ export function toggleDevMode() {
 export function triggerAutoMove() {
     gameStore.setState(state => {
         if (state.status !== 'playing' && !state.devMode) return state
-        return autoMoveOnes(state)
+
+        // Start timer if auto-move happens (e.g. initial deal ones)
+        let nextState = { ...state }
+        if (!state.timerRunning && state.status === 'playing') {
+            nextState.timerRunning = true
+            nextState.startTime = Date.now() - state.elapsedTime
+        }
+
+        return autoMoveOnes(nextState)
     })
+}
+
+export function updateTimer(elapsed: number) {
+    gameStore.setState(state => ({
+        ...state,
+        elapsedTime: elapsed
+    }))
+}
+
+export function toggleTimerVisibility() {
+    gameStore.setState(state => ({
+        ...state,
+        isTimerVisible: !state.isTimerVisible
+    }))
 }

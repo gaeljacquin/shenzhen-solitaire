@@ -1,7 +1,7 @@
 import React from 'react'
 import { Card as CardType } from '../lib/types'
 import { cn } from '../lib/utils'
-import { Flower, Sparkles, Flame, Cloud } from 'lucide-react'
+import { Flower, Circle, Square, Diamond } from 'lucide-react'
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import { motion } from 'motion/react'
@@ -25,7 +25,7 @@ export function Card({
   style: propStyle,
   onClick,
   onDoubleClick,
-  cardStyle = 'filled',
+  cardStyle = 'outlined', // Default to outlined
   disabled,
   canMoveToFoundation
 }: CardProps) {
@@ -42,49 +42,41 @@ export function Card({
     ...propStyle,
   }
 
-  // ... getCardColors and getDragonIcon ...
-
   const getCardColors = (color: string) => {
     const isOutlined = cardStyle === 'outlined'
+    // Beige background for outlined cards
+    const bgClass = isOutlined ? 'bg-[#FDF6E3]' : ''
 
     switch (color) {
       case 'green':
         return isOutlined
-          ? 'bg-white text-emerald-600 border-emerald-600'
+          ? `${bgClass} text-emerald-600 border-emerald-600`
           : 'bg-emerald-600 text-white border-emerald-700'
-      case 'purple':
+      case 'red': // Replaces Purple
         return isOutlined
-          ? 'bg-white text-purple-900 border-purple-900'
-          : 'bg-purple-900 text-white border-purple-950'
-      case 'indigo':
-        return isOutlined
-          ? 'bg-white text-indigo-900 border-indigo-900'
-          : 'bg-indigo-900 text-white border-indigo-950'
-      case 'red':
-        return isOutlined
-          ? 'bg-white text-red-600 border-red-600'
+          ? `${bgClass} text-red-600 border-red-600`
           : 'bg-red-600 text-white border-red-700'
-      case 'white': // Now Orange as per instructions
+      case 'black': // Replaces Indigo
         return isOutlined
-          ? 'bg-white text-orange-500 border-orange-500'
-          : 'bg-orange-500 text-white border-orange-600'
-      case 'sky': // For Green Dragon (Cloud)
+          ? `${bgClass} text-black border-black`
+          : 'bg-black text-white border-black'
+      case 'yellow': // Replaces White/Orange
         return isOutlined
-          ? 'bg-white text-sky-500 border-sky-500'
-          : 'bg-sky-500 text-white border-sky-600'
+          ? `${bgClass} text-black border-black`
+          : 'bg-black text-white border-black'
       default:
-        return 'bg-white text-black border-slate-300'
+        return `${bgClass} text-black border-slate-300`
     }
   }
 
   const getDragonIcon = (color: string) => {
     switch (color) {
       case 'green':
-        return <Cloud className="size-4" />
+        return <Circle className="size-4 fill-current" /> // Green Circle
       case 'red':
-        return <Flame className="size-4" />
-      case 'white':
-        return <Sparkles className="size-4" />
+        return <Square className="size-4 fill-current" /> // Red Square
+      case 'yellow':
+        return <Diamond className="size-4 fill-current" /> // Yellow Diamond
       default:
         return null
     }
@@ -92,8 +84,7 @@ export function Card({
 
   const renderContent = () => {
     if (card.kind === 'normal') {
-      const displayColor = card.color === 'indigo' ? 'indigo' : card.color
-      const colorClass = getCardColors(displayColor)
+      const colorClass = getCardColors(card.color)
 
       return (
         <div className={cn("w-full h-full flex flex-col justify-between p-1.5 rounded-md border-2",
@@ -110,11 +101,7 @@ export function Card({
     }
 
     if (card.kind === 'dragon') {
-      let displayColor: string = card.color
-      if (card.color === 'green') displayColor = 'sky'
-      if (card.color === 'white') displayColor = 'white'
-
-      const colorClass = getCardColors(displayColor)
+      const colorClass = getCardColors(card.color)
       const icon = getDragonIcon(card.color)
 
       return (
@@ -125,7 +112,7 @@ export function Card({
         )}>
           <div className="leading-none">{icon}</div>
           <div className="flex-1 flex items-center justify-center">
-            {icon && React.cloneElement(icon as React.ReactElement<{ className?: string }>, { className: "size-10" })}
+            {icon && React.cloneElement(icon as React.ReactElement<{ className?: string }>, { className: "size-10 fill-current" })}
           </div>
           <div className="leading-none rotate-180">{icon}</div>
         </div>
@@ -134,8 +121,9 @@ export function Card({
 
     if (card.kind === 'flower') {
       const isOutlined = cardStyle === 'outlined'
+      const bgClass = isOutlined ? 'bg-[#FDF6E3]' : ''
       const colorClass = isOutlined
-        ? 'bg-white text-pink-600 border-pink-600'
+        ? `${bgClass} text-pink-600 border-pink-600`
         : 'bg-pink-600 text-white border-pink-700'
 
       return (
@@ -160,11 +148,11 @@ export function Card({
       {...listeners}
       {...attributes}
       className={cn(
-        "w-24 h-32 rounded-lg shadow-sm select-none relative overflow-hidden p-1 touch-none transition-all",
+        "w-28 h-40 rounded-lg shadow-sm select-none relative overflow-hidden p-1 touch-none transition-all",
         // Opacity logic: If className has opacity-0, it wins. Otherwise, if dragging, opacity-50.
         !className?.includes('opacity-0') && isDragging && "opacity-50 z-50",
         (disabled || (card.kind === 'dragon' && card.isLocked)) && "cursor-default",
-        canMoveToFoundation && !isDragging && "shadow-[0_0_15px_rgba(250,204,21,0.8)] border-yellow-400",
+        canMoveToFoundation && !isDragging && "border-white animate-border-pulse",
         className
       )}
       style={style}

@@ -5,7 +5,7 @@ export const Route = createFileRoute('/')({ component: ShenzhenSolitaire })
 
 function ShenzhenSolitaire() {
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col items-center justify-center">
+    <div className="min-h-screen bg-[#2d5a3d] text-slate-100 flex flex-col items-center justify-center">
       <GameBoard />
     </div>
   )

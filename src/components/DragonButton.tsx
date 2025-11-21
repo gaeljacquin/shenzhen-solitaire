@@ -1,9 +1,9 @@
 import React from 'react'
+import { DragonColor } from '../lib/types'
 import { useStore } from '@tanstack/react-store'
 import { gameStore, collectDragons } from '../lib/store'
-import { DragonColor } from '../lib/types'
-import { Cloud, Flame, Sparkles } from 'lucide-react'
 import { cn } from '../lib/utils'
+import { Circle, Square, Diamond } from 'lucide-react'
 
 interface DragonButtonProps {
   color: DragonColor
@@ -16,7 +16,7 @@ export function DragonButton({ color }: DragonButtonProps) {
   const status = useStore(gameStore, (state) => state.status)
   const devMode = useStore(gameStore, (state) => state.devMode)
 
-  const isCollected = dragons > 0
+  const isCollected = dragons === 1
 
   const canCollect = React.useMemo(() => {
     if (isCollected) return false
@@ -40,10 +40,10 @@ export function DragonButton({ color }: DragonButtonProps) {
           break
         }
       }
-      if (!foundInCol) return false
+      if (!foundInCol && !devMode) return false
     }
 
-    if (locations.length !== 4) return false
+    if (locations.length !== 4 && !devMode) return false
 
     // Check for free cell availability
     let targetFreeIndex = -1
@@ -62,9 +62,9 @@ export function DragonButton({ color }: DragonButtonProps) {
 
   const getIcon = () => {
     switch (color) {
-      case 'green': return <Cloud className="size-5" />
-      case 'red': return <Flame className="size-5" />
-      case 'white': return <Sparkles className="size-5" />
+      case 'green': return <Circle className="size-5 fill-current" />
+      case 'red': return <Square className="size-5 fill-current" />
+      case 'yellow': return <Diamond className="size-5 fill-current" />
     }
   }
 
@@ -77,15 +77,15 @@ export function DragonButton({ color }: DragonButtonProps) {
 
     if (!canCollect) {
       // Dimmed version of the color
-      if (color === 'green') return cn(base, "bg-sky-900/30 border-sky-900/50 text-sky-700 cursor-not-allowed")
+      if (color === 'green') return cn(base, "bg-emerald-900/30 border-emerald-900/50 text-emerald-700 cursor-not-allowed")
       if (color === 'red') return cn(base, "bg-red-900/30 border-red-900/50 text-red-700 cursor-not-allowed")
-      if (color === 'white') return cn(base, "bg-orange-900/30 border-orange-900/50 text-orange-700 cursor-not-allowed")
+      if (color === 'yellow') return cn(base, "bg-black/30 border-black/50 text-black/70 cursor-not-allowed")
     }
 
     // Active state
-    if (color === 'green') return cn(base, "bg-sky-500 border-sky-600 text-white shadow-[0_0_15px_rgba(14,165,233,0.6)] cursor-pointer hover:bg-sky-400")
+    if (color === 'green') return cn(base, "bg-emerald-500 border-emerald-600 text-white shadow-[0_0_15px_rgba(16,185,129,0.6)] cursor-pointer hover:bg-emerald-400")
     if (color === 'red') return cn(base, "bg-red-600 border-red-700 text-white shadow-[0_0_15px_rgba(220,38,38,0.6)] cursor-pointer hover:bg-red-500")
-    if (color === 'white') return cn(base, "bg-orange-500 border-orange-600 text-white shadow-[0_0_15px_rgba(249,115,22,0.6)] cursor-pointer hover:bg-orange-400")
+    if (color === 'yellow') return cn(base, "bg-black border-black text-white shadow-[0_0_15px_rgba(0,0,0,0.6)] cursor-pointer hover:bg-gray-800")
 
     return base
   }
