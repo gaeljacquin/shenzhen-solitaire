@@ -257,7 +257,8 @@ export function moveCard(cardId: string, targetId: string) {
     }
 
     let status: GameStatus = state.status
-    if (newFoundations.green === 9 && newFoundations.red === 9 && newFoundations.black === 9 && newFoundations.flower) {
+    const newDragons = { ...state.dragons }
+    if (newFoundations.green === 9 && newFoundations.red === 9 && newFoundations.black === 9 && newFoundations.flower && newDragons.green === 1 && newDragons.red === 1 && newDragons.black === 1) {
         status = 'won'
         timerRunning = false
     }
@@ -537,7 +538,7 @@ export function performWandMove() {
 
         if (historyEntry) {
             let status: GameStatus = currentState.status
-            if (currentState.foundations.green === 9 && currentState.foundations.red === 9 && currentState.foundations.black === 9 && currentState.foundations.flower) {
+            if (currentState.foundations.green === 9 && currentState.foundations.red === 9 && currentState.foundations.black === 9 && currentState.foundations.flower && currentState.dragons.green === 1 && currentState.dragons.red === 1 && currentState.dragons.black === 1) {
                 status = 'won'
             }
 
@@ -557,13 +558,16 @@ function autoMoveOnes(state: GameState): GameState {
     let currentState = { ...state }
     let moved = true
 
+    // Check if foundation is full (all three colors at 9) to auto-move flower
+    const isFoundationFull = currentState.foundations.green === 9 && currentState.foundations.red === 9 && currentState.foundations.black === 9
+
     while (moved) {
         moved = false
         const moves: { source: 'col' | 'free', index: number, card: Card }[] = []
 
         currentState.freeCells.forEach((c, i) => {
             if (c) {
-                if ((c.kind === 'normal' && c.value === 1) || c.kind === 'flower') {
+                if ((c.kind === 'normal' && c.value === 1) || (c.kind === 'flower' && (isFoundationFull || !currentState.foundations.flower))) {
                     moves.push({ source: 'free', index: i, card: c })
                 }
             }
@@ -572,7 +576,7 @@ function autoMoveOnes(state: GameState): GameState {
         currentState.columns.forEach((col, i) => {
             if (col.length > 0) {
                 const c = col[col.length - 1]
-                if ((c.kind === 'normal' && c.value === 1) || c.kind === 'flower') {
+                if ((c.kind === 'normal' && c.value === 1) || (c.kind === 'flower' && (isFoundationFull || !currentState.foundations.flower))) {
                     moves.push({ source: 'col', index: i, card: c })
                 }
             }
@@ -627,7 +631,7 @@ function autoMoveOnes(state: GameState): GameState {
         }
     }
 
-    if (currentState.foundations.green === 9 && currentState.foundations.red === 9 && currentState.foundations.black === 9 && currentState.foundations.flower) {
+    if (currentState.foundations.green === 9 && currentState.foundations.red === 9 && currentState.foundations.black === 9 && currentState.foundations.flower && currentState.dragons.green === 1 && currentState.dragons.red === 1 && currentState.dragons.black === 1) {
         currentState.status = 'won'
         currentState.timerRunning = false
     }
