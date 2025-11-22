@@ -130,7 +130,7 @@ function canStack(bottomCard: Card, topCard: Card): boolean {
   return true
 }
 
-export function moveCard(cardId: string, targetId: string) {
+export function moveCard(cardId: string, targetId: string, skipAutoMove: boolean = false) {
   gameStore.setState((state) => {
     if (state.status !== 'playing' && !state.devMode) return state
 
@@ -274,7 +274,7 @@ export function moveCard(cardId: string, targetId: string) {
       startTime
     }
 
-    return autoMoveOnes(nextState)
+    return skipAutoMove ? nextState : autoMoveOnes(nextState)
   })
 }
 

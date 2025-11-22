@@ -201,7 +201,11 @@ export function GameBoard() {
     }
 
     if (targetFreeCellId) {
-      moveCard(card.id, targetFreeCellId)
+      // Move to free cell without auto-move, then trigger auto-move after animation
+      moveCard(card.id, targetFreeCellId, true)
+      setTimeout(() => {
+        triggerAutoMove()
+      }, 250) // Slightly longer than the 200ms animation duration
     }
   }
 
