@@ -4,6 +4,7 @@ import { useStore } from '@tanstack/react-store'
 import { gameStore, collectDragons } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { Circle, Square, Diamond } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 
 interface DragonButtonProps {
   color: DragonColor
@@ -88,13 +89,12 @@ export function DragonButton({ color }: DragonButtonProps) {
   }
 
   return (
-    <button
+    <Button
       className={getStyles()}
       disabled={isCollected || !canCollect}
       onClick={() => collectDragons(color)}
-      title={isCollected ? 'Collected' : canCollect ? 'Collect Dragons' : 'Dragons not ready'}
     >
       {getIcon()}
-    </button>
+    </Button>
   )
 }
