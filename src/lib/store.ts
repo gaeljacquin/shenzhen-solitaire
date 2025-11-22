@@ -1,5 +1,5 @@
 import { Store } from '@tanstack/store'
-import { Card, CardColor, DragonColor } from './types'
+import type { Card, CardColor, DragonColor } from '@/lib/types'
 
 export type GameStatus = 'idle' | 'playing' | 'paused' | 'won'
 

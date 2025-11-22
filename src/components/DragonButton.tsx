@@ -1,8 +1,8 @@
 import React from 'react'
-import { DragonColor } from '../lib/types'
+import type { DragonColor } from '@/lib/types'
 import { useStore } from '@tanstack/react-store'
-import { gameStore, collectDragons } from '../lib/store'
-import { cn } from '../lib/utils'
+import { gameStore, collectDragons } from '@/lib/store'
+import { cn } from '@/lib/utils'
 import { Circle, Square, Diamond } from 'lucide-react'
 
 interface DragonButtonProps {

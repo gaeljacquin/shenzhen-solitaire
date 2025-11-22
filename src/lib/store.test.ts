@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { gameStore, moveCard, collectDragons, undo, pauseGame, resumeGame, newGame, performWandMove, triggerAutoMove } from './store'
-import { Card } from './types'
+import type { Card } from '@/lib/types'
 
 // Helper to reset store for tests
 function resetStore() {

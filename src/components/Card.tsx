@@ -1,6 +1,6 @@
 import React from 'react'
-import { Card as CardType } from '../lib/types'
-import { cn } from '../lib/utils'
+import type { Card as CardType } from '@/lib/types'
+import { cn } from '@/lib/utils'
 import { Flower, Circle, Square, Diamond } from 'lucide-react'
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'

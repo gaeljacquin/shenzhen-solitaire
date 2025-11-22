@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '@tanstack/react-store'
-import { gameStore, undo, restartGame, pauseGame, resumeGame, newGame, toggleDevMode, updateTimer, toggleTimerVisibility, syncTimerVisibility } from '../lib/store'
-import { cn } from '../lib/utils'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger, DialogClose } from './ui/dialog'
-import { Button } from './ui/button'
+import { gameStore, undo, restartGame, pauseGame, resumeGame, newGame, toggleDevMode, updateTimer, toggleTimerVisibility, syncTimerVisibility } from '@/lib/store'
+import { cn } from '@/lib/utils'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger, DialogClose } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
 import { TimerIcon, TimerOffIcon } from 'lucide-react'
 
 export function ControlPanel() {

@@ -1,13 +1,13 @@
 import { useStore } from '@tanstack/react-store'
-import { gameStore, moveCard, performWandMove, triggerAutoMove, newGame } from '../lib/store'
-import { Card } from './Card'
-import { ControlPanel } from './ControlPanel'
+import { gameStore, moveCard, performWandMove, triggerAutoMove, newGame } from '@/lib/store'
+import { Card } from '@/components/Card'
+import { ControlPanel } from '@/components/ControlPanel'
 import { Flower, Wand2 } from 'lucide-react'
-import { cn } from '../lib/utils'
-import { DndContext, DragEndEvent, DragStartEvent, useSensor, useSensors, PointerSensor, useDroppable, DragOverlay } from '@dnd-kit/core'
-import { Card as CardType } from '../lib/types'
-import { DragonButton } from './DragonButton'
-import { ReactNode, useState, useMemo, useEffect } from 'react'
+import { cn } from '@/lib/utils'
+import { DndContext, type DragEndEvent, type DragStartEvent, useSensor, useSensors, PointerSensor, useDroppable, DragOverlay } from '@dnd-kit/core'
+import type { Card as CardType } from '@/lib/types'
+import { DragonButton } from '@/components/DragonButton'
+import { type ReactNode, useState, useMemo, useEffect } from 'react'
 
 function DroppableZone({ id, children, className }: { id: string, children: ReactNode, className?: string }) {
   const { setNodeRef, isOver } = useDroppable({ id })
