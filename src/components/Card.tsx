@@ -3,7 +3,6 @@ import type { Card as CardType } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Flower, Circle, Square, Diamond } from 'lucide-react'
 import { useDraggable } from '@dnd-kit/core'
-import { CSS } from '@dnd-kit/utilities'
 import { motion } from 'motion/react'
 
 interface CardProps {
@@ -29,15 +28,14 @@ export function Card({
   disabled,
   canMoveToFoundation
 }: CardProps) {
-  const { attributes, listeners, setNodeRef, transform, isDragging: dndIsDragging } = useDraggable({
+  const { attributes, listeners, setNodeRef, isDragging: dndIsDragging } = useDraggable({
     id: card.id,
-    disabled: disabled || (card.kind === 'dragon' && card.isLocked),
+    disabled: disabled || (card.kind === 'dragon' && card.isLocked) || propIsDragging,
   })
 
   const isDragging = propIsDragging || dndIsDragging
 
   const style = {
-    transform: CSS.Translate.toString(transform),
     zIndex: isDragging ? 100 : undefined,
     ...propStyle,
   }
@@ -136,26 +134,43 @@ export function Card({
     }
   }
 
+  if (isDragging) {
+    return (
+      <div
+        ref={setNodeRef}
+        {...listeners}
+        {...attributes}
+        className={cn(
+          "w-28 h-40 rounded-lg shadow-sm select-none relative overflow-hidden p-1 touch-none transition-none",
+          !className?.includes('opacity-0') && "opacity-50 z-50",
+          (disabled || (card.kind === 'dragon' && card.isLocked)) && "cursor-default",
+          className
+        )}
+        style={style}
+        onClick={onClick}
+        onDoubleClick={onDoubleClick}
+      >
+        {renderContent()}
+      </div>
+    )
+  }
+
   return (
     <motion.div
-      layoutId={isDragging ? undefined : card.id}
+      layoutId={className?.includes('opacity-0') ? undefined : card.id}
       ref={setNodeRef}
       {...listeners}
       {...attributes}
       className={cn(
         "w-28 h-40 rounded-lg shadow-sm select-none relative overflow-hidden p-1 touch-none transition-all",
-        // Opacity logic: If className has opacity-0, it wins. Otherwise, if dragging, opacity-50.
-        !className?.includes('opacity-0') && isDragging && "opacity-50 z-50",
         (disabled || (card.kind === 'dragon' && card.isLocked)) && "cursor-default",
-        canMoveToFoundation && !isDragging && "border-white animate-border-pulse",
+        canMoveToFoundation && "border-white animate-border-pulse",
         className
       )}
       style={style}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
-      initial={{ scale: 0.8, opacity: 0 }}
       animate={{
-        scale: 1,
         opacity: className?.includes('opacity-0') ? 0 : 1
       }}
       transition={{

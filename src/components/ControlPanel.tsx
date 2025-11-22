@@ -47,8 +47,11 @@ export function ControlPanel() {
   return (
     <div className="flex flex-col items-center w-full max-w-7xl px-4 gap-2 mt-4">
 
-      <div className={cn("flex justify-center transition-opacity duration-300", isTimerVisible ? "opacity-100" : "opacity-0")}>
-        <div className="text-3xl font-mono font-bold text-white tracking-wider drop-shadow-md flex gap-2 h-9">
+      <div className="flex justify-center transition-opacity duration-300">
+        <div className={cn(
+          "text-3xl font-mono font-bold text-white tracking-wider drop-shadow-md flex gap-2 h-9",
+          status === 'paused' || status === 'won' ? "opacity-100" : (isTimerVisible ? "opacity-100" : "opacity-0")
+        )}>
           {status === 'paused' ? 'PAUSED' : status === 'won' ? `VICTORY - ${displayTime}` : displayTime}
         </div>
       </div>
@@ -56,7 +59,7 @@ export function ControlPanel() {
       <div className="flex gap-4 justify-center flex-wrap items-center">
         <Button
           variant="outline"
-          className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200"
+          className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer"
           onClick={undo}
           disabled={history.length === 0 || status !== 'playing'}
         >
@@ -66,7 +69,7 @@ export function ControlPanel() {
         <Button
           variant="outline"
           className={cn(
-            "border-slate-300 transition-colors",
+            "border-slate-300 transition-colors cursor-pointer",
             status === 'paused'
               ? "bg-amber-500 text-white hover:bg-amber-600 border-amber-600"
               : "bg-slate-100 text-slate-900 hover:bg-slate-200"
@@ -81,7 +84,7 @@ export function ControlPanel() {
           variant="outline"
           size="icon"
           className={cn(
-            "border-slate-300 transition-colors",
+            "border-slate-300 transition-colors cursor-pointer",
             !isTimerVisible
               ? "bg-slate-300 text-slate-600 hover:bg-slate-400"
               : "bg-slate-100 text-slate-900 hover:bg-slate-200"
@@ -94,7 +97,11 @@ export function ControlPanel() {
 
         <Dialog>
           <DialogTrigger asChild>
-            <Button variant="outline" className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200">
+            <Button
+              variant="outline"
+              className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer"
+              disabled={status === 'won'}
+            >
               Restart
             </Button>
           </DialogTrigger>
@@ -107,42 +114,52 @@ export function ControlPanel() {
             </DialogHeader>
             <DialogFooter>
               <DialogClose asChild>
-                <Button variant="outline" className="border-slate-400 text-slate-900">Cancel</Button>
+                <Button variant="outline" className="border-slate-400 text-slate-900 cursor-pointer">Cancel</Button>
               </DialogClose>
               <DialogClose asChild>
-                <Button onClick={() => restartGame()} className="bg-slate-800 hover:bg-slate-900 text-white">Restart</Button>
+                <Button onClick={() => restartGame()} className="bg-slate-800 hover:bg-slate-900 text-white cursor-pointer">Restart</Button>
               </DialogClose>
             </DialogFooter>
           </DialogContent>
         </Dialog>
 
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button variant="outline" className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200">
-              New Game
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="bg-[#FDF6E3] text-slate-900 border-slate-400">
-            <DialogHeader>
-              <DialogTitle>Start New Game?</DialogTitle>
-              <DialogDescription className="text-slate-700">
-                Are you sure you want to start a new game? Current progress will be lost.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <DialogClose asChild>
-                <Button variant="outline" className="border-slate-400 text-slate-900">Cancel</Button>
-              </DialogClose>
-              <DialogClose asChild>
-                <Button onClick={() => newGame()} className="bg-slate-800 hover:bg-slate-900 text-white">New Game</Button>
-              </DialogClose>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        {status === 'won' ? (
+          <Button
+            variant="outline"
+            className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer"
+            onClick={() => newGame()}
+          >
+            New Game
+          </Button>
+        ) : (
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer">
+                New Game
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="bg-[#FDF6E3] text-slate-900 border-slate-400">
+              <DialogHeader>
+                <DialogTitle>Start New Game?</DialogTitle>
+                <DialogDescription className="text-slate-700">
+                  Are you sure you want to start a new game? All progress will be lost.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button variant="outline" className="border-slate-400 text-slate-900 cursor-pointer">Cancel</Button>
+                </DialogClose>
+                <DialogClose asChild>
+                  <Button onClick={() => newGame()} className="bg-slate-800 hover:bg-slate-900 text-white cursor-pointer">New Game</Button>
+                </DialogClose>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
 
         <Dialog>
           <DialogTrigger asChild>
-            <Button variant="outline" className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200">
+            <Button variant="outline" className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer">
               Instructions
             </Button>
           </DialogTrigger>
@@ -164,7 +181,7 @@ export function ControlPanel() {
 
         <Dialog>
           <DialogTrigger asChild>
-            <Button variant="outline" className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200">
+            <Button variant="outline" className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer">
               About
             </Button>
           </DialogTrigger>

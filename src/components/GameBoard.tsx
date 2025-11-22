@@ -150,12 +150,13 @@ export function GameBoard() {
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
-    setActiveId(null)
-    setDraggedStack([])
 
     if (over && active.id !== over.id) {
       moveCard(active.id as string, over.id as string)
     }
+
+    setActiveId(null)
+    setDraggedStack([])
   }
 
   useEffect(() => {
@@ -228,19 +229,28 @@ export function GameBoard() {
         <div className="w-full flex justify-between items-start mb-8 gap-8">
 
           <div className="flex gap-2">
-            {state.freeCells.map((card, i) => (
-              <DroppableZone key={`free-${i}`} id={`free-${i}`} className="w-28 h-40 border-2 border-white/20 rounded-lg bg-white/5 flex items-center justify-center">
-                {card && (
-                  <Card
-                    card={card}
-                    cardStyle={cardStyle}
-                    className={state.status === 'paused' ? "opacity-0" : ""}
-                    onDoubleClick={() => handleCardDoubleClick(card)}
-                    canMoveToFoundation={canMoveToFoundation(card)}
-                  />
-                )}
-              </DroppableZone>
-            ))}
+            {state.freeCells.map((card, i) => {
+              const isBeingDragged = card && draggedStack.some(c => c.id === card.id)
+              return (
+                <DroppableZone key={`free-${i}`} id={`free-${i}`} className={cn(
+                  "w-28 h-40 border-2 border-white/20 rounded-lg bg-white/5 flex items-center justify-center transition-opacity",
+                  card && card.kind === 'dragon' && card.isLocked && "opacity-50"
+                )}>
+                  {card && (
+                    <Card
+                      card={card}
+                      cardStyle={cardStyle}
+                      className={cn(
+                        isBeingDragged && "opacity-0",
+                        state.status === 'paused' && "opacity-0"
+                      )}
+                      onDoubleClick={() => handleCardDoubleClick(card)}
+                      canMoveToFoundation={canMoveToFoundation(card)}
+                    />
+                  )}
+                </DroppableZone>
+              )
+            })}
           </div>
 
           <div className="flex flex-col gap-4 items-center">
@@ -248,6 +258,7 @@ export function GameBoard() {
               id="foundation-flower"
               className={cn(
                 "w-28 h-40 border-2 border-white/20 rounded-lg bg-white/5 flex items-center justify-center relative transition-all duration-300",
+                state.foundations.flower && "opacity-50"
               )}
             >
               <Flower className={cn(
@@ -281,7 +292,10 @@ export function GameBoard() {
                 } : null
 
                 return (
-                  <DroppableZone key={color} id={`foundation-${color}`} className="w-28 h-40 border-2 border-white/20 rounded-lg bg-white/5 flex items-center justify-center relative">
+                  <DroppableZone key={color} id={`foundation-${color}`} className={cn(
+                    "w-28 h-40 border-2 border-white/20 rounded-lg bg-white/5 flex items-center justify-center relative transition-opacity",
+                    foundationCard && "opacity-50"
+                  )}>
                     {foundationCard ? (
                       <Card
                         card={foundationCard}
