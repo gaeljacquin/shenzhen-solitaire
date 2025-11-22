@@ -138,7 +138,7 @@ export function Card({
 
   return (
     <motion.div
-      layoutId={card.id}
+      layoutId={isDragging ? undefined : card.id}
       ref={setNodeRef}
       {...listeners}
       {...attributes}
