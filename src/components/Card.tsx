@@ -158,11 +158,13 @@ export function Card({
   return (
     <motion.div
       layoutId={className?.includes('opacity-0') ? undefined : card.id}
+      layout="position"
+      initial={false}
       ref={setNodeRef}
       {...listeners}
       {...attributes}
       className={cn(
-        "w-28 h-40 rounded-lg shadow-sm select-none relative overflow-hidden p-1 touch-none transition-all",
+        "w-28 h-40 rounded-lg shadow-sm select-none relative overflow-hidden p-1 touch-none transition-none",
         (disabled || (card.kind === 'dragon' && card.isLocked)) && "cursor-default",
         canMoveToFoundation && "border-white animate-border-pulse",
         className
@@ -174,7 +176,7 @@ export function Card({
         opacity: className?.includes('opacity-0') ? 0 : 1
       }}
       transition={{
-        layout: { duration: 0.2, type: "spring", bounce: 0.2 },
+        layout: { duration: 0.45, type: "spring", bounce: 0.15 },
         opacity: { duration: 0.2 }
       }}
     >

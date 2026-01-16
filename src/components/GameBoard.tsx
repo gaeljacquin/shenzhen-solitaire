@@ -5,6 +5,7 @@ import { ControlPanel } from '@/components/ControlPanel'
 import { Flower, Wand2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DndContext, type DragEndEvent, type DragStartEvent, useSensor, useSensors, PointerSensor, useDroppable, DragOverlay } from '@dnd-kit/core'
+import { LayoutGroup } from 'motion/react'
 import type { Card as CardType } from '@/lib/types'
 import { DragonButton } from '@/components/DragonButton'
 import { type ReactNode, useState, useMemo, useEffect } from 'react'
@@ -212,19 +213,20 @@ export function GameBoard() {
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <div key={state.gameId} className="w-full max-w-7xl mx-auto p-4 flex flex-col items-center min-h-screen relative pb-4">
+      <LayoutGroup id={`game-${state.gameId}`}>
+        <div key={state.gameId} className="w-full max-w-7xl mx-auto p-4 flex flex-col items-center min-h-screen relative pb-4">
 
-        <DragOverlay>
-          {activeId && draggedStack.length > 0 ? (
-            <div className="flex flex-col gap-[-3rem]">
-              {draggedStack.map((card, index) => (
-                <div key={card.id} style={{ marginTop: index === 0 ? 0 : '-8rem' }}>
-                  <Card card={card} cardStyle={cardStyle} isDragging />
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </DragOverlay>
+          <DragOverlay>
+            {activeId && draggedStack.length > 0 ? (
+              <div className="flex flex-col gap-[-3rem]">
+                {draggedStack.map((card, index) => (
+                  <div key={card.id} style={{ marginTop: index === 0 ? 0 : '-8rem' }}>
+                    <Card card={card} cardStyle={cardStyle} isDragging />
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </DragOverlay>
 
         <div className="w-full flex justify-between items-start mb-8 gap-8">
 
@@ -363,8 +365,9 @@ export function GameBoard() {
           ))}
         </div>
 
-        <ControlPanel />
-      </div>
+          <ControlPanel />
+        </div>
+      </LayoutGroup>
     </DndContext>
   )
 }
