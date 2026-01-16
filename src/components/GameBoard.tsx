@@ -1,14 +1,16 @@
 import { useStore } from '@tanstack/react-store'
-import { gameStore, moveCard, collectDragons, triggerAutoMove, newGame } from '@/lib/store'
+import { Flower, Wand2 } from 'lucide-react'
+import { DndContext,  DragOverlay,  PointerSensor, useDroppable, useSensor, useSensors } from '@dnd-kit/core'
+import { LayoutGroup, motion } from 'motion/react'
+import {  useEffect, useMemo, useState } from 'react'
+import type {DragEndEvent, DragStartEvent} from '@dnd-kit/core';
+import type { CardColor, Card as CardType, DragonColor } from '@/lib/types'
+import type { ReactNode } from 'react';
+import { collectDragons, gameStore, moveCard, newGame, triggerAutoMove } from '@/lib/store'
 import { Card } from '@/components/Card'
 import { ControlPanel } from '@/components/ControlPanel'
-import { Flower, Wand2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { DndContext, type DragEndEvent, type DragStartEvent, useSensor, useSensors, PointerSensor, useDroppable, DragOverlay } from '@dnd-kit/core'
-import { LayoutGroup, motion } from 'motion/react'
-import type { Card as CardType, CardColor, DragonColor } from '@/lib/types'
 import { DragonButton } from '@/components/DragonButton'
-import { type ReactNode, useState, useMemo, useEffect } from 'react'
 
 function DroppableZone({ id, children, className }: { id: string, children: ReactNode, className?: string }) {
   const { setNodeRef, isOver } = useDroppable({ id })
@@ -35,8 +37,9 @@ export function GameBoard() {
   const state = useStore(gameStore)
   const [cardStyle] = useState<'filled' | 'outlined'>('outlined')
   const [movingCardIds, setMovingCardIds] = useState<Set<string>>(() => new Set())
-  const [floatingCards, setFloatingCards] = useState<FloatingCardMove[]>([])
+  const [floatingCards, setFloatingCards] = useState<Array<FloatingCardMove>>([])
   const [isAutoMoving, setIsAutoMoving] = useState(false)
+  const [skipLayoutIds, setSkipLayoutIds] = useState<Set<string>>(() => new Set())
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -47,13 +50,21 @@ export function GameBoard() {
   )
 
   const [activeId, setActiveId] = useState<string | null>(null)
-  const [draggedStack, setDraggedStack] = useState<CardType[]>([])
+  const [draggedStack, setDraggedStack] = useState<Array<CardType>>([])
 
   useEffect(() => {
     if (state.status === 'idle') {
       newGame()
     }
   }, [state.status])
+
+  useEffect(() => {
+    if (skipLayoutIds.size === 0) return
+    const frame = requestAnimationFrame(() => {
+      setSkipLayoutIds(new Set())
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [skipLayoutIds])
 
   const isFlowerAvailable = useMemo(() => {
     if (state.foundations.flower) return false
@@ -68,7 +79,7 @@ export function GameBoard() {
 
     if (nextRank > 9) return false
 
-    const colors: ('green' | 'red' | 'black')[] = ['green', 'red', 'black']
+    const colors: Array<'green' | 'red' | 'black'> = ['green', 'red', 'black']
     let allAvailable = true
 
     for (const color of colors) {
@@ -101,8 +112,8 @@ export function GameBoard() {
   const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
   const animateCardMove = async (card: CardType, targetZoneId: string) => {
-    const sourceEl = document.querySelector(`[data-card-id="${card.id}"]`) as HTMLElement | null
-    const targetEl = document.querySelector(`[data-zone-id="${targetZoneId}"]`) as HTMLElement | null
+    const sourceEl = document.querySelector(`[data-card-id="${card.id}"]`)
+    const targetEl = document.querySelector(`[data-zone-id="${targetZoneId}"]`)
 
     if (!sourceEl || !targetEl) return
 
@@ -155,7 +166,7 @@ export function GameBoard() {
 
     try {
       const historyStart = gameStore.state.history.length
-      let moved = true
+      const moved = true
       while (moved) {
         const currentState = gameStore.state
         const minFoundation = Math.min(
@@ -167,8 +178,8 @@ export function GameBoard() {
 
         if (nextRank > 9) break
 
-        const colors: CardColor[] = ['green', 'red', 'black']
-        const moves: { card: CardType; targetId: string }[] = []
+        const colors: Array<CardColor> = ['green', 'red', 'black']
+        const moves: Array<{ card: CardType; targetId: string }> = []
         let allAvailable = true
 
         for (const color of colors) {
@@ -222,7 +233,7 @@ export function GameBoard() {
     if (currentState.status !== 'playing' && !currentState.devMode) return
 
     const dragonIds = [0, 1, 2, 3].map(i => `dragon-${color}-${i}`)
-    const locations: { card: CardType; source: 'col' | 'free'; index: number }[] = []
+    const locations: Array<{ card: CardType; source: 'col' | 'free'; index: number }> = []
 
     for (const id of dragonIds) {
       const freeIdx = currentState.freeCells.findIndex(c => c?.id === id)
@@ -311,7 +322,7 @@ export function GameBoard() {
     setActiveId(active.id as string)
 
     const cardId = active.id as string
-    let stack: CardType[] = []
+    let stack: Array<CardType> = []
 
     for (const column of state.columns) {
       const index = column.findIndex(c => c.id === cardId)
@@ -348,6 +359,9 @@ export function GameBoard() {
     const { active, over } = event
 
     if (over && active.id !== over.id) {
+      if (draggedStack.length > 1) {
+        setSkipLayoutIds(new Set(draggedStack.map(card => card.id)))
+      }
       moveCard(active.id as string, over.id as string)
     }
 
@@ -561,7 +575,7 @@ export function GameBoard() {
                   "w-16 h-12 rounded-md border-2 flex items-center justify-center transition-all duration-100 mt-2",
                   isWandActive
                     ? "bg-cyan-900/50 border-cyan-500 text-cyan-400 hover:bg-cyan-800 hover:text-white shadow-[0_0_10px_rgba(34,211,238,0.3)] cursor-pointer"
-                    : "border-emerald-800/30 text-emerald-800/50 cursor-not-allowed opacity-50"
+                    : "bg-slate-900/30 border-slate-700/50 text-slate-500/30 cursor-not-allowed"
                 )}
                 onClick={handleWandMove}
                 disabled={!isWandActive || isAutoMoving}
@@ -578,7 +592,7 @@ export function GameBoard() {
             <DroppableZone
               key={`col-${i}`}
               id={`col-${i}`}
-              className="w-32 min-h-[36rem] flex flex-col gap-[-8rem] p-1 border-2 border-white/10 rounded-lg bg-white/5 items-center pt-2"
+              className="w-32 min-h-144 flex flex-col gap-[-8rem] p-1 border-2 border-white/10 rounded-lg bg-white/5 items-center pt-2"
             >
               {column.map((card, index) => {
                 const isBeingDragged = draggedStack.some(c => c.id === card.id)
@@ -587,7 +601,7 @@ export function GameBoard() {
                 const isDraggable = canDragCard(card.id)
 
                 return (
-                  <div key={`${i}-${index}`} style={{ marginTop: index === 0 ? 0 : '-8rem' }}>
+                  <div key={card.id} style={{ marginTop: index === 0 ? 0 : '-8rem' }}>
                     <Card
                       card={card}
                       cardStyle={cardStyle}
@@ -596,6 +610,7 @@ export function GameBoard() {
                         movingCardIds.has(card.id) && "opacity-0",
                         state.status === 'paused' ? "opacity-0" : ""
                       )}
+                      disableLayout={skipLayoutIds.has(card.id)}
                       onDoubleClick={() => handleCardDoubleClick(card)}
                       canMoveToFoundation={canMove}
                       disabled={!isDraggable}

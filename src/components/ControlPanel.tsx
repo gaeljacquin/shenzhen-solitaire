@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '@tanstack/react-store'
-import { gameStore, undo, restartGame, pauseGame, resumeGame, newGame, toggleDevMode, updateTimer, toggleTimerVisibility, syncTimerVisibility } from '@/lib/store'
-import { cn } from '@/lib/utils'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger, DialogClose } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
 import { TimerIcon, TimerOffIcon } from 'lucide-react'
+import { gameStore, newGame, pauseGame, restartGame, resumeGame, syncTimerVisibility, toggleDevMode, toggleTimerVisibility, undo, updateTimer } from '@/lib/store'
+import { cn } from '@/lib/utils'
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
 
 export function ControlPanel() {
   const status = useStore(gameStore, (state) => state.status)
@@ -205,7 +205,13 @@ export function ControlPanel() {
           <div className="flex gap-2">
             <Button
               variant="outline"
-              className={cn(devMode ? "bg-slate-900/50 border-slate-500 text-white shadow-[0_0_10px_rgba(220,38,38,0.2)]" : "bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200")}
+              className={
+                cn(devMode
+                  ? "bg-slate-900/50 border-slate-500 text-white shadow-[0_0_10px_rgba(220,38,38,0.2)]"
+                  : "bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200",
+                  "cursor-pointer",
+                )
+              }
               onClick={toggleDevMode}
             >
               Move Any

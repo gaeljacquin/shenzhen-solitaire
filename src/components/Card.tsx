@@ -16,6 +16,7 @@ interface CardProps {
   onDoubleClick?: () => void
   canMoveToFoundation?: boolean
   dataIdDisabled?: boolean
+  disableLayout?: boolean
 }
 
 export function Card({
@@ -28,7 +29,8 @@ export function Card({
   cardStyle = 'outlined', // Default to outlined
   disabled,
   canMoveToFoundation,
-  dataIdDisabled
+  dataIdDisabled,
+  disableLayout
 }: CardProps) {
   const { attributes, listeners, setNodeRef, isDragging: dndIsDragging } = useDraggable({
     id: card.id,
@@ -160,8 +162,8 @@ export function Card({
 
   return (
     <motion.div
-      layoutId={className?.includes('opacity-0') ? undefined : card.id}
-      layout="position"
+      layoutId={disableLayout || className?.includes('opacity-0') ? undefined : card.id}
+      layout={disableLayout ? false : 'position'}
       initial={false}
       ref={setNodeRef}
       {...listeners}

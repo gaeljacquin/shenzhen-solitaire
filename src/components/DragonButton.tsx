@@ -1,9 +1,9 @@
 import React from 'react'
-import type { DragonColor } from '@/lib/types'
 import { useStore } from '@tanstack/react-store'
-import { gameStore, collectDragons } from '@/lib/store'
+import { Circle, Diamond, Square } from 'lucide-react'
+import type { DragonColor } from '@/lib/types'
+import { collectDragons, gameStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
-import { Circle, Square, Diamond } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface DragonButtonProps {
@@ -12,7 +12,7 @@ interface DragonButtonProps {
   disabled?: boolean
 }
 
-export function DragonButton({ color, onCollect, disabled }: DragonButtonProps) {
+export function DragonButton({ color, onCollect, disabled }: Readonly<DragonButtonProps>) {
   const dragons = useStore(gameStore, (state) => state.dragons[color])
   const columns = useStore(gameStore, (state) => state.columns)
   const freeCells = useStore(gameStore, (state) => state.freeCells)
@@ -26,7 +26,7 @@ export function DragonButton({ color, onCollect, disabled }: DragonButtonProps) 
     if (status !== 'playing' && !devMode) return false
 
     const dragonIds = [0, 1, 2, 3].map(i => `dragon-${color}-${i}`)
-    const locations: ({ type: 'col', index: number } | { type: 'free', index: number })[] = []
+    const locations: Array<{ type: 'col', index: number } | { type: 'free', index: number }> = []
 
     for (const id of dragonIds) {
       const freeIdx = freeCells.findIndex(c => c?.id === id)
@@ -84,14 +84,12 @@ export function DragonButton({ color, onCollect, disabled }: DragonButtonProps) 
     if (!canCollect) {
       if (color === 'green') return cn(base, "bg-emerald-900/30 border-emerald-900/50 text-emerald-700 cursor-not-allowed")
       if (color === 'red') return cn(base, "bg-red-900/30 border-red-900/50 text-red-700 cursor-not-allowed")
-      if (color === 'black') return cn(base, "bg-black/30 border-black/50 text-black/70 cursor-not-allowed")
+      return cn(base, "bg-black/30 border-black/50 text-black/70 cursor-not-allowed")
     }
 
     if (color === 'green') return cn(base, "bg-emerald-500 border-emerald-600 text-white shadow-[0_0_15px_rgba(16,185,129,0.6)] cursor-pointer hover:bg-emerald-400")
     if (color === 'red') return cn(base, "bg-red-600 border-red-700 text-white shadow-[0_0_15px_rgba(220,38,38,0.6)] cursor-pointer hover:bg-red-500")
-    if (color === 'black') return cn(base, "bg-black border-black text-white shadow-[0_0_15px_rgba(0,0,0,0.6)] cursor-pointer hover:bg-gray-800")
-
-    return base
+    return cn(base, "bg-black border-black text-white shadow-[0_0_15px_rgba(0,0,0,0.6)] cursor-pointer hover:bg-gray-800")
   }
 
   return (
