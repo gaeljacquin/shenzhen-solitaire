@@ -8,9 +8,11 @@ import { Button } from '@/components/ui/button'
 
 interface DragonButtonProps {
   color: DragonColor
+  onCollect?: () => void
+  disabled?: boolean
 }
 
-export function DragonButton({ color }: DragonButtonProps) {
+export function DragonButton({ color, onCollect, disabled }: DragonButtonProps) {
   const dragons = useStore(gameStore, (state) => state.dragons[color])
   const columns = useStore(gameStore, (state) => state.columns)
   const freeCells = useStore(gameStore, (state) => state.freeCells)
@@ -71,6 +73,10 @@ export function DragonButton({ color }: DragonButtonProps) {
   const getStyles = () => {
     const base = "w-16 h-12 rounded-md border-2 flex items-center justify-center transition-all duration-100 active:scale-95 active:brightness-90"
 
+    if (disabled) {
+      return cn(base, "opacity-50 cursor-not-allowed")
+    }
+
     if (isCollected) {
       return cn(base, "bg-slate-800 border-slate-700 text-slate-600 opacity-50 cursor-not-allowed")
     }
@@ -91,8 +97,8 @@ export function DragonButton({ color }: DragonButtonProps) {
   return (
     <Button
       className={getStyles()}
-      disabled={isCollected || !canCollect}
-      onClick={() => collectDragons(color)}
+      disabled={disabled || isCollected || !canCollect}
+      onClick={onCollect ?? (() => collectDragons(color))}
     >
       {getIcon()}
     </Button>

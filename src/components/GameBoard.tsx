@@ -1,27 +1,42 @@
 import { useStore } from '@tanstack/react-store'
-import { gameStore, moveCard, performWandMove, triggerAutoMove, newGame } from '@/lib/store'
+import { gameStore, moveCard, collectDragons, triggerAutoMove, newGame } from '@/lib/store'
 import { Card } from '@/components/Card'
 import { ControlPanel } from '@/components/ControlPanel'
 import { Flower, Wand2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DndContext, type DragEndEvent, type DragStartEvent, useSensor, useSensors, PointerSensor, useDroppable, DragOverlay } from '@dnd-kit/core'
-import { LayoutGroup } from 'motion/react'
-import type { Card as CardType } from '@/lib/types'
+import { LayoutGroup, motion } from 'motion/react'
+import type { Card as CardType, CardColor, DragonColor } from '@/lib/types'
 import { DragonButton } from '@/components/DragonButton'
 import { type ReactNode, useState, useMemo, useEffect } from 'react'
 
 function DroppableZone({ id, children, className }: { id: string, children: ReactNode, className?: string }) {
   const { setNodeRef, isOver } = useDroppable({ id })
   return (
-    <div ref={setNodeRef} className={cn(className, isOver && "ring-2 ring-black ring-opacity-50")}>
+    <div
+      ref={setNodeRef}
+      data-zone-id={id}
+      className={cn(className, isOver && "ring-2 ring-black ring-opacity-50")}
+    >
       {children}
     </div>
   )
 }
 
+type FloatingCardMove = {
+  id: string
+  card: CardType
+  from: DOMRect
+  to: DOMRect
+  onComplete: () => void
+}
+
 export function GameBoard() {
   const state = useStore(gameStore)
   const [cardStyle] = useState<'filled' | 'outlined'>('outlined')
+  const [movingCardIds, setMovingCardIds] = useState<Set<string>>(() => new Set())
+  const [floatingCards, setFloatingCards] = useState<FloatingCardMove[]>([])
+  const [isAutoMoving, setIsAutoMoving] = useState(false)
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -82,6 +97,186 @@ export function GameBoard() {
     }
     return allAvailable
   }, [state.foundations, state.columns, state.freeCells])
+
+  const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+  const animateCardMove = async (card: CardType, targetZoneId: string) => {
+    const sourceEl = document.querySelector(`[data-card-id="${card.id}"]`) as HTMLElement | null
+    const targetEl = document.querySelector(`[data-zone-id="${targetZoneId}"]`) as HTMLElement | null
+
+    if (!sourceEl || !targetEl) return
+
+    const from = sourceEl.getBoundingClientRect()
+    const to = targetEl.getBoundingClientRect()
+
+    if (Math.abs(from.left - to.left) < 1 && Math.abs(from.top - to.top) < 1) return
+
+    const animationId = `${card.id}-${Date.now()}-${Math.random().toString(16).slice(2)}`
+
+    await new Promise<void>((resolve) => {
+      const onComplete = () => {
+        setFloatingCards(prev => prev.filter(item => item.id !== animationId))
+        resolve()
+      }
+
+      setFloatingCards(prev => [
+        ...prev,
+        {
+          id: animationId,
+          card,
+          from,
+          to,
+          onComplete,
+        },
+      ])
+    })
+  }
+
+  const findCardForRank = (currentState: typeof state, color: CardColor, rank: number) => {
+    const freeIdx = currentState.freeCells.findIndex(
+      c => c?.kind === 'normal' && c.color === color && c.value === rank
+    )
+    if (freeIdx !== -1) return currentState.freeCells[freeIdx]!
+
+    for (const col of currentState.columns) {
+      if (col.length === 0) continue
+      const card = col[col.length - 1]
+      if (card.kind === 'normal' && card.color === color && card.value === rank) {
+        return card
+      }
+    }
+
+    return null
+  }
+
+  const handleWandMove = async () => {
+    if (!isWandActive || isAutoMoving) return
+    setIsAutoMoving(true)
+
+    try {
+      const historyStart = gameStore.state.history.length
+      let moved = true
+      while (moved) {
+        const currentState = gameStore.state
+        const minFoundation = Math.min(
+          currentState.foundations.green,
+          currentState.foundations.red,
+          currentState.foundations.black
+        )
+        const nextRank = minFoundation + 1
+
+        if (nextRank > 9) break
+
+        const colors: CardColor[] = ['green', 'red', 'black']
+        const moves: { card: CardType; targetId: string }[] = []
+        let allAvailable = true
+
+        for (const color of colors) {
+          if (currentState.foundations[color] >= nextRank) continue
+          const card = findCardForRank(currentState, color, nextRank)
+          if (!card) {
+            allAvailable = false
+            break
+          }
+          moves.push({ card, targetId: `foundation-${color}` })
+        }
+
+        if (!allAvailable || moves.length === 0) break
+
+        setMovingCardIds(prev => {
+          const next = new Set(prev)
+          moves.forEach(move => next.add(move.card.id))
+          return next
+        })
+
+        await Promise.all(moves.map(move => animateCardMove(move.card, move.targetId)))
+
+        for (const move of moves) {
+          moveCard(move.card.id, move.targetId, true)
+        }
+
+        setMovingCardIds(prev => {
+          const next = new Set(prev)
+          moves.forEach(move => next.delete(move.card.id))
+          return next
+        })
+
+        await wait(20)
+      }
+
+      if (gameStore.state.history.length > historyStart + 1) {
+        gameStore.setState(state => ({
+          ...state,
+          history: state.history.slice(0, historyStart + 1),
+        }))
+      }
+    } finally {
+      setIsAutoMoving(false)
+    }
+  }
+
+  const handleCollectDragons = async (color: DragonColor) => {
+    if (isAutoMoving) return
+
+    const currentState = gameStore.state
+    if (currentState.status !== 'playing' && !currentState.devMode) return
+
+    const dragonIds = [0, 1, 2, 3].map(i => `dragon-${color}-${i}`)
+    const locations: { card: CardType; source: 'col' | 'free'; index: number }[] = []
+
+    for (const id of dragonIds) {
+      const freeIdx = currentState.freeCells.findIndex(c => c?.id === id)
+      if (freeIdx !== -1) {
+        locations.push({ card: currentState.freeCells[freeIdx]!, source: 'free', index: freeIdx })
+        continue
+      }
+      let foundInCol = false
+      for (let i = 0; i < currentState.columns.length; i++) {
+        const col = currentState.columns[i]
+        if (col.length > 0 && col[col.length - 1].id === id) {
+          locations.push({ card: col[col.length - 1], source: 'col', index: i })
+          foundInCol = true
+          break
+        }
+      }
+      if (!foundInCol && !currentState.devMode) return
+    }
+
+    if (locations.length !== 4 && !currentState.devMode) return
+
+    let targetFreeIndex = -1
+    for (const loc of locations) {
+      if (loc.source === 'free') {
+        targetFreeIndex = loc.index
+        break
+      }
+    }
+    if (targetFreeIndex === -1) {
+      targetFreeIndex = currentState.freeCells.findIndex(c => c === null)
+    }
+    if (targetFreeIndex === -1) return
+
+    const targetId = `free-${targetFreeIndex}`
+    setIsAutoMoving(true)
+
+    try {
+      setMovingCardIds(prev => {
+        const next = new Set(prev)
+        locations.forEach(loc => next.add(loc.card.id))
+        return next
+      })
+
+      await Promise.all(locations.map(loc => animateCardMove(loc.card, targetId)))
+      collectDragons(color)
+    } finally {
+      setMovingCardIds(prev => {
+        const next = new Set(prev)
+        locations.forEach(loc => next.delete(loc.card.id))
+        return next
+      })
+      setIsAutoMoving(false)
+    }
+  }
 
   function canStack(bottomCard: CardType, topCard: CardType): boolean {
     if (bottomCard.kind !== 'normal' || topCard.kind !== 'normal') return false
@@ -228,7 +423,40 @@ export function GameBoard() {
             ) : null}
           </DragOverlay>
 
-        <div className="w-full flex justify-between items-start mb-8 gap-8">
+          {floatingCards.length > 0 && (
+            <div className="pointer-events-none fixed inset-0 z-50">
+              {floatingCards.map((move) => (
+                <motion.div
+                  key={move.id}
+                  initial={{
+                    x: move.from.left,
+                    y: move.from.top,
+                    width: move.from.width,
+                    height: move.from.height,
+                  }}
+                  animate={{
+                    x: move.to.left,
+                    y: move.to.top,
+                    width: move.to.width,
+                    height: move.to.height,
+                  }}
+                  transition={{ duration: 0.3, type: 'spring', bounce: 0.2 }}
+                  style={{ position: 'fixed', left: 0, top: 0, zIndex: 1000 }}
+                  onAnimationComplete={move.onComplete}
+                >
+                  <Card
+                    card={move.card}
+                    cardStyle={cardStyle}
+                    isDragging
+                    className="opacity-100"
+                    dataIdDisabled
+                  />
+                </motion.div>
+              ))}
+            </div>
+          )}
+
+          <div className="w-full flex justify-between items-start mb-8 gap-8">
 
           <div className="flex gap-2">
             {state.freeCells.map((card, i) => {
@@ -244,6 +472,7 @@ export function GameBoard() {
                       cardStyle={cardStyle}
                       className={cn(
                         isBeingDragged && "opacity-0",
+                        movingCardIds.has(card.id) && "opacity-0",
                         state.status === 'paused' && "opacity-0"
                       )}
                       onDoubleClick={() => handleCardDoubleClick(card)}
@@ -276,9 +505,21 @@ export function GameBoard() {
             </DroppableZone>
 
             <div className="flex gap-2">
-              <DragonButton color="green" />
-              <DragonButton color="red" />
-              <DragonButton color="black" />
+              <DragonButton
+                color="green"
+                disabled={isAutoMoving}
+                onCollect={() => handleCollectDragons('green')}
+              />
+              <DragonButton
+                color="red"
+                disabled={isAutoMoving}
+                onCollect={() => handleCollectDragons('red')}
+              />
+              <DragonButton
+                color="black"
+                disabled={isAutoMoving}
+                onCollect={() => handleCollectDragons('black')}
+              />
             </div>
           </div>
 
@@ -322,8 +563,8 @@ export function GameBoard() {
                     ? "bg-cyan-900/50 border-cyan-500 text-cyan-400 hover:bg-cyan-800 hover:text-white shadow-[0_0_10px_rgba(34,211,238,0.3)] cursor-pointer"
                     : "border-emerald-800/30 text-emerald-800/50 cursor-not-allowed opacity-50"
                 )}
-                onClick={() => isWandActive && performWandMove()}
-                disabled={!isWandActive}
+                onClick={handleWandMove}
+                disabled={!isWandActive || isAutoMoving}
                 title="Auto-Complete"
               >
                 <Wand2 className="size-5" />
@@ -352,6 +593,7 @@ export function GameBoard() {
                       cardStyle={cardStyle}
                       className={cn(
                         isBeingDragged ? "opacity-0" : "",
+                        movingCardIds.has(card.id) && "opacity-0",
                         state.status === 'paused' ? "opacity-0" : ""
                       )}
                       onDoubleClick={() => handleCardDoubleClick(card)}

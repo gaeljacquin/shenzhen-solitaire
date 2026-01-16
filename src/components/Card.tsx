@@ -15,6 +15,7 @@ interface CardProps {
   disabled?: boolean
   onDoubleClick?: () => void
   canMoveToFoundation?: boolean
+  dataIdDisabled?: boolean
 }
 
 export function Card({
@@ -26,7 +27,8 @@ export function Card({
   onDoubleClick,
   cardStyle = 'outlined', // Default to outlined
   disabled,
-  canMoveToFoundation
+  canMoveToFoundation,
+  dataIdDisabled
 }: CardProps) {
   const { attributes, listeners, setNodeRef, isDragging: dndIsDragging } = useDraggable({
     id: card.id,
@@ -140,6 +142,7 @@ export function Card({
         ref={setNodeRef}
         {...listeners}
         {...attributes}
+        data-card-id={dataIdDisabled ? undefined : card.id}
         className={cn(
           "w-28 h-40 rounded-lg shadow-sm select-none relative overflow-hidden p-1 touch-none transition-none",
           !className?.includes('opacity-0') && "opacity-50 z-50",
@@ -163,6 +166,7 @@ export function Card({
       ref={setNodeRef}
       {...listeners}
       {...attributes}
+      data-card-id={dataIdDisabled ? undefined : card.id}
       className={cn(
         "w-28 h-40 rounded-lg shadow-sm select-none relative overflow-hidden p-1 touch-none transition-none",
         (disabled || (card.kind === 'dragon' && card.isLocked)) && "cursor-default",
