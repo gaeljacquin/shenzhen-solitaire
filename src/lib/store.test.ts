@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { gameStore, moveCard, collectDragons, undo, pauseGame, resumeGame, newGame, performWandMove, triggerAutoMove } from './store'
+import { gameStore, moveCard, collectDragons, undo, pauseGame, resumeGame, newGame, autoSolve, triggerAutoMove } from './store'
 import type { Card } from '@/lib/types'
 
 // Helper to reset store for tests
@@ -162,7 +162,7 @@ describe('Shenzhen Solitaire Store', () => {
             foundations: { green: 1, red: 1, black: 1, flower: false }
         }))
 
-        performWandMove()
+        autoSolve()
 
         const state = gameStore.state
         expect(state.foundations.green).toBe(2)

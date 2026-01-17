@@ -17,6 +17,7 @@ interface CardProps {
   canMoveToFoundation?: boolean
   dataIdDisabled?: boolean
   disableLayout?: boolean
+  isFaceDown?: boolean
 }
 
 export function Card({
@@ -30,7 +31,8 @@ export function Card({
   disabled,
   canMoveToFoundation,
   dataIdDisabled,
-  disableLayout
+  disableLayout,
+  isFaceDown
 }: CardProps) {
   const { attributes, listeners, setNodeRef, isDragging: dndIsDragging } = useDraggable({
     id: card.id,
@@ -79,7 +81,16 @@ export function Card({
     }
   }
 
-  const renderContent = () => {
+  const renderBackContent = () => (
+    <div
+      className={cn(
+        "w-full h-full rounded-md border-2 border-slate-600 bg-[#FDF6E3] bg-no-repeat bg-center",
+      )}
+      style={{ backgroundImage: 'url(/logo.png)', backgroundSize: '70%' }}
+    />
+  )
+
+  const renderFrontContent = () => {
     if (card.kind === 'normal') {
       const colorClass = getCardColors(card.color)
 
@@ -138,6 +149,11 @@ export function Card({
     }
   }
 
+  const renderContent = () => {
+    if (isFaceDown) return renderBackContent()
+    return renderFrontContent()
+  }
+
   if (isDragging) {
     return (
       <div
@@ -177,7 +193,7 @@ export function Card({
         canMoveToFoundation && "border-white animate-border-pulse",
         className
       )}
-      style={style}
+      style={{ ...style, perspective: '1000px' }}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
       animate={{
@@ -188,7 +204,26 @@ export function Card({
         opacity: { duration: instantHide ? 0 : 0.2 }
       }}
     >
-      {renderContent()}
+      <div
+        className="relative w-full h-full transition-transform duration-500 ease-in-out"
+        style={{
+          transformStyle: 'preserve-3d',
+          transform: `rotateY(${isFaceDown ? 180 : 0}deg)`,
+        }}
+      >
+        <div
+          className="absolute inset-0"
+          style={{ backfaceVisibility: 'hidden' }}
+        >
+          {renderFrontContent()}
+        </div>
+        <div
+          className="absolute inset-0"
+          style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
+        >
+          {renderBackContent()}
+        </div>
+      </div>
     </motion.div>
   )
 }

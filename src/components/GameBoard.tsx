@@ -1,8 +1,8 @@
 import { useStore } from '@tanstack/react-store'
-import { Flower, Wand2 } from 'lucide-react'
+import { CheckCheck, Flower } from 'lucide-react'
 import { DndContext,  DragOverlay,  PointerSensor, useDroppable, useSensor, useSensors } from '@dnd-kit/core'
 import { LayoutGroup, motion } from 'motion/react'
-import {  useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import type {DragEndEvent, DragStartEvent} from '@dnd-kit/core';
 import type { CardColor, Card as CardType, DragonColor } from '@/lib/types'
@@ -32,6 +32,9 @@ type FloatingCardMove = {
   from: DOMRect
   to: DOMRect
   onComplete: () => void
+  isFaceDown?: boolean
+  transitionType?: 'spring' | 'tween'
+  duration?: number
 }
 
 export function GameBoard() {
@@ -44,6 +47,11 @@ export function GameBoard() {
   const [isUndoing, setIsUndoing] = useState(false)
   const [skipLayoutIds, setSkipLayoutIds] = useState<Set<string>>(() => new Set())
   const lastClickRef = useRef<{ id: string; time: number } | null>(null)
+  const [isDealingCards, setIsDealingCards] = useState(false)
+  const [isFlipping, setIsFlipping] = useState(false)
+  const [areCardsFaceDown, setAreCardsFaceDown] = useState(false)
+  const [dealtCounts, setDealtCounts] = useState<Array<number>>(() => Array(8).fill(0))
+  const dealRunRef = useRef(0)
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -55,6 +63,8 @@ export function GameBoard() {
 
   const [activeId, setActiveId] = useState<string | null>(null)
   const [draggedStack, setDraggedStack] = useState<Array<CardType>>([])
+  const isUiLocked = isDealingCards || isFlipping || isAutoMoving
+  const isBoardLocked = isUiLocked || isUndoing
 
   useEffect(() => {
     if (state.status === 'idle') {
@@ -76,7 +86,7 @@ export function GameBoard() {
     return state.columns.some(col => col.length > 0 && col[col.length - 1].kind === 'flower')
   }, [state.freeCells, state.columns, state.foundations.flower])
 
-  const isWandActive = useMemo(() => {
+  const isAutoSolveActive = useMemo(() => {
     const { foundations, columns, freeCells } = state
     const minFoundation = Math.min(foundations.green, foundations.red, foundations.black)
     const nextRank = minFoundation + 1
@@ -221,6 +231,39 @@ export function GameBoard() {
     })
   }
 
+  const animateCardFromTo = async (
+    card: CardType,
+    from: DOMRect,
+    to: DOMRect,
+    options: { isFaceDown?: boolean; transitionType?: 'spring' | 'tween'; duration?: number } = {},
+  ) => {
+    if (Math.abs(from.left - to.left) < 1 && Math.abs(from.top - to.top) < 1) return
+
+    const animationId = `${card.id}-${Date.now()}-${Math.random().toString(16).slice(2)}`
+
+    await new Promise<void>((resolve) => {
+      const onComplete = () => {
+        setFloatingCards(prev => prev.filter(item => item.id !== animationId))
+        resolve()
+      }
+
+      const nextMove: FloatingCardMove = {
+        id: animationId,
+        card,
+        from,
+        to,
+        onComplete,
+        isFaceDown: options.isFaceDown,
+        transitionType: options.transitionType,
+        duration: options.duration,
+      }
+
+      flushSync(() => {
+        setFloatingCards(prev => [...prev, nextMove])
+      })
+    })
+  }
+
   const findCardForRank = (currentState: typeof state, color: CardColor, rank: number) => {
     const freeIdx = currentState.freeCells.findIndex(
       c => c?.kind === 'normal' && c.color === color && c.value === rank
@@ -238,8 +281,8 @@ export function GameBoard() {
     return null
   }
 
-  const handleWandMove = async () => {
-    if (!isWandActive || isAutoMoving) return
+  const handleAutoSolve = async () => {
+    if (isBoardLocked || !isAutoSolveActive || isAutoMoving) return
     setIsAutoMoving(true)
 
     try {
@@ -305,7 +348,7 @@ export function GameBoard() {
   }
 
   const handleCollectDragons = async (color: DragonColor) => {
-    if (isAutoMoving) return
+    if (isBoardLocked || isAutoMoving) return
 
     const currentState = gameStore.state
     if (currentState.status !== 'playing' && !currentState.devMode) return
@@ -375,6 +418,7 @@ export function GameBoard() {
   }
 
   function canDragCard(cardId: string): boolean {
+    if (isBoardLocked) return false
     if (state.devMode) return true
 
     if (state.freeCells.some(c => c?.id === cardId)) return true
@@ -396,6 +440,7 @@ export function GameBoard() {
   }
 
   function handleDragStart(event: DragStartEvent) {
+    if (isBoardLocked) return
     const { active } = event
     setActiveId(active.id as string)
 
@@ -434,6 +479,7 @@ export function GameBoard() {
   }
 
   function handleDragEnd(event: DragEndEvent) {
+    if (isBoardLocked) return
     const { active, over } = event
 
     if (over && active.id !== over.id) {
@@ -448,13 +494,13 @@ export function GameBoard() {
   }
 
   useEffect(() => {
-    if (state.status === 'playing') {
+    if (state.status === 'playing' && !isDealingCards && !isFlipping) {
       const timer = setTimeout(() => {
         triggerAutoMove()
       }, 1000)
       return () => clearTimeout(timer)
     }
-  }, [state.status, state.history.length === 0])
+  }, [state.status, state.history.length === 0, isDealingCards, isFlipping])
 
   const canMoveToFoundation = (card: CardType) => {
     if (card.kind === 'flower') return isFlowerAvailable
@@ -573,6 +619,7 @@ export function GameBoard() {
   }
 
   function handleCardDoubleClick(card: CardType) {
+    if (isBoardLocked) return
     if (movingCardIds.has(card.id)) return
 
     const currentState = gameStore.state
@@ -691,6 +738,7 @@ export function GameBoard() {
   }
 
   function handleCardClick(card: CardType) {
+    if (isBoardLocked) return
     const now = Date.now()
     const lastClick = lastClickRef.current
     const isDouble = !!lastClick && lastClick.id === card.id && now - lastClick.time < 320
@@ -705,7 +753,7 @@ export function GameBoard() {
   }
 
   const handleUndo = () => {
-    if (isUndoing || isAutoMoving) return
+    if (isUndoing || isUiLocked) return
 
     const currentState = gameStore.state
     const targetState = computeUndoState(currentState)
@@ -713,7 +761,7 @@ export function GameBoard() {
 
     const currentPositions = getCardPositionMap(currentState)
     const targetPositions = getCardPositionMap(targetState)
-    const movingIds: string[] = []
+    const movingIds: Array<string> = []
     const fromRects = new Map<string, DOMRect>()
     const toRects = new Map<string, DOMRect>()
     const stackOffset = getStackOffset()
@@ -721,6 +769,14 @@ export function GameBoard() {
     targetPositions.forEach((targetPosition, cardId) => {
       const currentPosition = currentPositions.get(cardId)
       if (!currentPosition || currentPosition === targetPosition) return
+      if (
+        cardId.startsWith('normal-') &&
+        cardId.endsWith('-1') &&
+        currentPosition.startsWith('foundation-') &&
+        (targetPosition.startsWith('col-') || targetPosition.startsWith('free-'))
+      ) {
+        return
+      }
 
       const sourceEl = document.querySelector(`[data-card-id="${cardId}"]`)
       if (!sourceEl) return
@@ -739,7 +795,7 @@ export function GameBoard() {
       return
     }
 
-    const pendingMoves: FloatingCardMove[] = []
+    const pendingMoves: Array<FloatingCardMove> = []
     let remaining = 0
 
     movingIds.forEach((cardId) => {
@@ -797,6 +853,77 @@ export function GameBoard() {
     })
   }
 
+  useLayoutEffect(() => {
+    if (state.status !== 'playing') return
+
+    let cancelled = false
+    const runId = dealRunRef.current + 1
+    dealRunRef.current = runId
+
+    const runDeal = async () => {
+      setIsDealingCards(true)
+      setIsFlipping(false)
+      setAreCardsFaceDown(true)
+      setDealtCounts(Array(state.columns.length).fill(0))
+      setFloatingCards([])
+
+      await wait(50)
+      if (cancelled || dealRunRef.current !== runId) return
+
+      const stackOffset = getStackOffset()
+      const dealColumns = gameStore.state.columns
+      const cardsPerColumn = dealColumns[0]?.length ?? 0
+      const columnDealDuration = 0.3
+      const perCardDuration = cardsPerColumn > 0 ? columnDealDuration / cardsPerColumn : columnDealDuration
+
+      for (let colIndex = 0; colIndex < dealColumns.length; colIndex++) {
+        if (cancelled || dealRunRef.current !== runId) return
+        const sourceZone = document.querySelector('[data-zone-id="foundation-flower"]')
+        if (!sourceZone) continue
+
+        const fromRect = sourceZone.getBoundingClientRect()
+
+        for (let rowIndex = 0; rowIndex < cardsPerColumn; rowIndex++) {
+          if (cancelled || dealRunRef.current !== runId) return
+          const card = dealColumns[colIndex]?.[rowIndex]
+          if (!card) continue
+
+          const toRect = getTargetRectForState(gameStore.state, card.id, fromRect, stackOffset)
+          if (!toRect) continue
+          await animateCardFromTo(card, fromRect, toRect, {
+            isFaceDown: true,
+            transitionType: 'tween',
+            duration: perCardDuration,
+          })
+          setDealtCounts(prev => {
+            const next = [...prev]
+            next[colIndex] = Math.min(next[colIndex] + 1, dealColumns[colIndex].length)
+            return next
+          })
+        }
+      }
+
+      if (cancelled || dealRunRef.current !== runId) return
+      await new Promise(requestAnimationFrame)
+      if (cancelled || dealRunRef.current !== runId) return
+      await new Promise(requestAnimationFrame)
+      if (cancelled || dealRunRef.current !== runId) return
+      setIsDealingCards(false)
+      const flipDurationMs = 500
+      setIsFlipping(true)
+      setAreCardsFaceDown(false)
+      await wait(flipDurationMs)
+      if (cancelled || dealRunRef.current !== runId) return
+      setIsFlipping(false)
+    }
+
+    runDeal()
+
+    return () => {
+      cancelled = true
+    }
+  }, [state.gameId, state.status])
+
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <LayoutGroup id={`game-${state.gameId}`}>
@@ -831,7 +958,11 @@ export function GameBoard() {
                     width: move.to.width,
                     height: move.to.height,
                   }}
-                  transition={{ duration: 0.3, type: 'spring', bounce: 0.2 }}
+                  transition={
+                    move.transitionType === 'tween'
+                      ? { duration: move.duration ?? 0.3, type: 'tween', ease: 'easeOut' }
+                      : { duration: move.duration ?? 0.3, type: 'spring', bounce: 0.2 }
+                  }
                   style={{ position: 'fixed', left: 0, top: 0, zIndex: 1000 }}
                   onAnimationComplete={move.onComplete}
                 >
@@ -841,6 +972,7 @@ export function GameBoard() {
                     isDragging
                     className="opacity-100"
                     dataIdDisabled
+                    isFaceDown={move.isFaceDown}
                   />
                 </motion.div>
               ))}
@@ -870,6 +1002,8 @@ export function GameBoard() {
                         disableLayout={movingCardIds.has(card.id) || skipLayoutIds.has(card.id)}
                         onClick={() => handleCardClick(card)}
                         canMoveToFoundation={canMoveToFoundation(card)}
+                        disabled={isUiLocked}
+                        isFaceDown={areCardsFaceDown}
                       />
                     )}
                   </DroppableZone>
@@ -888,6 +1022,16 @@ export function GameBoard() {
               <Flower className={cn(
                 "text-white absolute size-8",
               )} />
+              {isDealingCards && (
+                <Card
+                  card={{ id: 'deal-dummy', kind: 'flower' }}
+                  cardStyle={cardStyle}
+                  className="absolute pointer-events-none"
+                  dataIdDisabled
+                  disabled={true}
+                  isFaceDown={true}
+                />
+              )}
               {state.foundations.flower && (
                 <Card
                   card={{ id: 'flower', kind: 'flower' }}
@@ -905,17 +1049,17 @@ export function GameBoard() {
             <div className="flex gap-2">
               <DragonButton
                 color="green"
-                disabled={isAutoMoving}
+                disabled={isUiLocked}
                 onCollect={() => handleCollectDragons('green')}
               />
               <DragonButton
                 color="red"
-                disabled={isAutoMoving}
+                disabled={isUiLocked}
                 onCollect={() => handleCollectDragons('red')}
               />
               <DragonButton
                 color="black"
-                disabled={isAutoMoving}
+                disabled={isUiLocked}
                 onCollect={() => handleCollectDragons('black')}
               />
             </div>
@@ -961,16 +1105,15 @@ export function GameBoard() {
             <div className="flex gap-2">
               <button
                 className={cn(
-                  "w-16 h-12 rounded-md border-2 flex items-center justify-center transition-all duration-100 mt-2",
-                  isWandActive
+                  "w-16 h-12 rounded-md border-2 flex items-center justify-center transition-all duration-200 ease-out mt-2 disabled:opacity-50 disabled:cursor-not-allowed",
+                  isAutoSolveActive
                     ? "bg-cyan-900/50 border-cyan-500 text-cyan-400 hover:bg-cyan-800 hover:text-white shadow-[0_0_10px_rgba(34,211,238,0.3)] cursor-pointer"
-                    : "bg-slate-900/30 border-slate-700/50 text-slate-500/30 cursor-not-allowed"
+                    : "bg-slate-900 active:scale-95 active:brightness-90 disabled:pointer-events-auto opacity-50",
                 )}
-                onClick={handleWandMove}
-                disabled={!isWandActive || isAutoMoving}
-                title="Auto-Complete"
+                onClick={handleAutoSolve}
+                disabled={isUiLocked || !isAutoSolveActive}
               >
-                <Wand2 className="size-5" />
+                <CheckCheck className="size-5" />
               </button>
             </div>
           </div>
@@ -983,10 +1126,10 @@ export function GameBoard() {
               id={`col-${i}`}
               className="w-32 min-h-144 flex flex-col gap-[-8rem] p-1 border-2 border-white/10 rounded-lg bg-white/5 items-center pt-2"
             >
-                  {column.map((card, index) => {
+                  {column.slice(0, isDealingCards ? dealtCounts[i] : column.length).map((card, index) => {
                     const isBeingDragged = draggedStack.some(c => c.id === card.id)
                     const isTopCard = index === column.length - 1
-                    const canMove = isTopCard && canMoveToFoundation(card)
+                    const canMove = !areCardsFaceDown && isTopCard && canMoveToFoundation(card)
                     const isDraggable = canDragCard(card.id)
 
                     return (
@@ -1003,7 +1146,8 @@ export function GameBoard() {
                       disableLayout={skipLayoutIds.has(card.id) || movingCardIds.has(card.id) || movingColumnIds.has(i)}
                           onClick={() => handleCardClick(card)}
                           canMoveToFoundation={canMove}
-                          disabled={!isDraggable}
+                          disabled={isBoardLocked || !isDraggable}
+                          isFaceDown={areCardsFaceDown}
                         />
                       </div>
                     )
@@ -1012,7 +1156,7 @@ export function GameBoard() {
           ))}
         </div>
 
-          <ControlPanel onUndo={handleUndo} />
+          <ControlPanel onUndo={handleUndo} isInputLocked={isUiLocked} />
         </div>
       </LayoutGroup>
     </DndContext>

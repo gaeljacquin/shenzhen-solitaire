@@ -4,10 +4,10 @@ import type { Card, CardColor, DragonColor } from '@/lib/types'
 export type GameStatus = 'idle' | 'playing' | 'paused' | 'won'
 
 interface GameState {
-  columns: Card[][]
-  freeCells: (Card | null)[]
-  initialColumns: Card[][]
-  initialFreeCells: (Card | null)[]
+  columns: Array<Array<Card>>
+  freeCells: Array<Card | null>
+  initialColumns: Array<Array<Card>>
+  initialFreeCells: Array<Card | null>
   foundations: {
     green: number
     red: number
@@ -20,7 +20,7 @@ interface GameState {
     black: number
   }
   status: GameStatus
-  history: (Omit<GameState, 'history' | 'status'> & { isAuto?: boolean })[]
+  history: Array<Omit<GameState, 'history' | 'status'> & { isAuto?: boolean }>
   devMode: boolean
   gameId: number
   startTime: number | null
@@ -30,17 +30,17 @@ interface GameState {
   isUndoEnabled: boolean
 }
 
-function createDeck(): Card[] {
-  const deck: Card[] = []
+function createDeck(): Array<Card> {
+  const deck: Array<Card> = []
 
-  const colors: CardColor[] = ['green', 'red', 'black']
+  const colors: Array<CardColor> = ['green', 'red', 'black']
   colors.forEach(color => {
     for (let i = 1; i <= 9; i++) {
       deck.push({ id: `normal-${color}-${i}`, kind: 'normal', color, value: i })
     }
   })
 
-  const dragonColors: DragonColor[] = ['green', 'red', 'black']
+  const dragonColors: Array<DragonColor> = ['green', 'red', 'black']
   dragonColors.forEach(color => {
     for (let i = 0; i < 4; i++) {
       deck.push({ id: `dragon-${color}-${i}`, kind: 'dragon', color })
@@ -52,7 +52,7 @@ function createDeck(): Card[] {
   return deck
 }
 
-function shuffle<T>(array: T[]): T[] {
+function shuffle<T>(array: Array<T>): Array<T> {
   const newArray = [...array]
   for (let i = newArray.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -100,13 +100,20 @@ function saveUndoEnabledToStorage(enabled: boolean): void {
   }
 }
 
-function dealCards(): { columns: Card[][], freeCells: (Card | null)[] } {
+function dealCards(): { columns: Array<Array<Card>>, freeCells: Array<Card | null> } {
   const deck = shuffle(createDeck())
-  const columns: Card[][] = Array.from({ length: 8 }, () => [])
+  const columns: Array<Array<Card>> = Array.from({ length: 8 }, () => [])
+  const cardsPerColumn = Math.floor(deck.length / columns.length)
+  let deckIndex = 0
 
-  deck.forEach((card, index) => {
-    columns[index % 8].push(card)
-  })
+  for (let colIndex = 0; colIndex < columns.length; colIndex++) {
+    for (let i = 0; i < cardsPerColumn; i++) {
+      const card = deck[deckIndex]
+      if (!card) break
+      columns[colIndex].push(card)
+      deckIndex += 1
+    }
+  }
 
   return {
     columns,
@@ -231,7 +238,7 @@ export function moveCard(cardId: string, targetId: string, skipAutoMove: boolean
     const newColumns = [...state.columns.map(col => [...col])]
     const newFreeCells = [...state.freeCells]
     const newFoundations = { ...state.foundations }
-    let cardsToMove: Card[] = []
+    let cardsToMove: Array<Card> = []
 
     if (source.type === 'column') {
       const col = newColumns[source.index]
@@ -320,7 +327,7 @@ export function collectDragons(color: DragonColor) {
         if (state.dragons[color] > 0) return state
 
         const dragonIds = [0, 1, 2, 3].map(i => `dragon-${color}-${i}`)
-        const locations: ({ type: 'col', index: number } | { type: 'free', index: number })[] = []
+        const locations: Array<{ type: 'col', index: number } | { type: 'free', index: number }> = []
 
         for (const id of dragonIds) {
             const freeIdx = state.freeCells.findIndex(c => c?.id === id)
@@ -515,7 +522,7 @@ export function resumeGame() {
     }))
 }
 
-export function performWandMove() {
+export function autoSolve() {
     gameStore.setState((state) => {
         if (state.status !== 'playing' && !state.devMode) return state
 
@@ -531,9 +538,9 @@ export function performWandMove() {
 
             if (nextRank > 9) break
 
-            const colors: CardColor[] = ['green', 'red', 'black']
+            const colors: Array<CardColor> = ['green', 'red', 'black']
             let allAvailable = true
-            const locations: { id: string, source: 'col' | 'free', index: number, color: CardColor }[] = []
+            const locations: Array<{ id: string, source: 'col' | 'free', index: number, color: CardColor }> = []
 
             for (const color of colors) {
                 if (currentState.foundations[color] >= nextRank) continue
@@ -634,7 +641,7 @@ function autoMoveOnes(state: GameState): GameState {
 
     while (moved) {
         moved = false
-        const moves: { source: 'col' | 'free', index: number, card: Card }[] = []
+        const moves: Array<{ source: 'col' | 'free', index: number, card: Card }> = []
 
         currentState.freeCells.forEach((c, i) => {
             if (c) {
@@ -724,7 +731,7 @@ export function triggerAutoMove() {
     gameStore.setState(state => {
         if (state.status !== 'playing' && !state.devMode) return state
 
-        let nextState = { ...state }
+        const nextState = { ...state }
         if (!state.timerRunning && state.status === 'playing') {
             nextState.timerRunning = true
             nextState.startTime = Date.now() - state.elapsedTime

@@ -7,9 +7,10 @@ import { Button } from '@/components/ui/button'
 
 type ControlPanelProps = {
   onUndo?: () => void
+  isInputLocked?: boolean
 }
 
-export function ControlPanel({ onUndo }: ControlPanelProps = {}) {
+export function ControlPanel({ onUndo, isInputLocked = false }: ControlPanelProps = {}) {
   const status = useStore(gameStore, (state) => state.status)
   const history = useStore(gameStore, (state) => state.history)
   const devMode = useStore(gameStore, (state) => state.devMode)
@@ -142,7 +143,7 @@ export function ControlPanel({ onUndo }: ControlPanelProps = {}) {
           variant="outline"
           className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer"
           onClick={onUndo ?? undo}
-          disabled={history.length === 0 || status !== 'playing' || !isUndoEnabled}
+          disabled={isInputLocked || history.length === 0 || status !== 'playing' || !isUndoEnabled}
         >
           Undo
         </Button>
@@ -156,7 +157,7 @@ export function ControlPanel({ onUndo }: ControlPanelProps = {}) {
               : "bg-slate-100 text-slate-900 hover:bg-slate-200"
           )}
           onClick={status === 'paused' ? resumeGame : pauseGame}
-          disabled={status === 'idle' || status === 'won'}
+          disabled={isInputLocked || status === 'idle' || status === 'won'}
         >
           Pause
         </Button>
@@ -166,7 +167,7 @@ export function ControlPanel({ onUndo }: ControlPanelProps = {}) {
             <Button
               variant="outline"
               className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer"
-              disabled={status === 'won' || !hasManualMoves}
+              disabled={isInputLocked || status === 'won' || !hasManualMoves}
             >
               Restart
             </Button>
@@ -183,7 +184,7 @@ export function ControlPanel({ onUndo }: ControlPanelProps = {}) {
                 <Button variant="outline" className="border-slate-400 text-slate-900 cursor-pointer">Cancel</Button>
               </DialogClose>
               <DialogClose asChild>
-                <Button onClick={() => restartGame()} className="bg-slate-800 hover:bg-slate-900 text-white cursor-pointer">Restart</Button>
+                <Button onClick={() => restartGame()} className="bg-slate-800 hover:bg-slate-900 text-white cursor-pointer" disabled={isInputLocked}>Restart</Button>
               </DialogClose>
             </DialogFooter>
           </DialogContent>
@@ -194,13 +195,14 @@ export function ControlPanel({ onUndo }: ControlPanelProps = {}) {
             variant="outline"
             className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer"
             onClick={() => newGame()}
+            disabled={isInputLocked}
           >
             New Game
           </Button>
         ) : (
           <Dialog>
             <DialogTrigger asChild>
-              <Button variant="outline" className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer">
+              <Button variant="outline" className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer" disabled={isInputLocked}>
                 New Game
               </Button>
             </DialogTrigger>
@@ -213,19 +215,19 @@ export function ControlPanel({ onUndo }: ControlPanelProps = {}) {
               </DialogHeader>
               <DialogFooter>
                 <DialogClose asChild>
-                  <Button variant="outline" className="border-slate-400 text-slate-900 cursor-pointer">Cancel</Button>
-                </DialogClose>
-                <DialogClose asChild>
-                  <Button onClick={() => newGame()} className="bg-slate-800 hover:bg-slate-900 text-white cursor-pointer">New Game</Button>
-                </DialogClose>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+                <Button variant="outline" className="border-slate-400 text-slate-900 cursor-pointer">Cancel</Button>
+              </DialogClose>
+              <DialogClose asChild>
+                <Button onClick={() => newGame()} className="bg-slate-800 hover:bg-slate-900 text-white cursor-pointer" disabled={isInputLocked}>New Game</Button>
+              </DialogClose>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
         )}
 
         <Dialog>
           <DialogTrigger asChild>
-            <Button variant="outline" className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer">
+            <Button variant="outline" className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer" disabled={isInputLocked}>
               Instructions
             </Button>
           </DialogTrigger>
@@ -247,7 +249,7 @@ export function ControlPanel({ onUndo }: ControlPanelProps = {}) {
 
         <Dialog open={optionsOpen} onOpenChange={handleOptionsOpenChange}>
           <DialogTrigger asChild>
-            <Button variant="outline" className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer">
+            <Button variant="outline" className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer" disabled={isInputLocked}>
               Options
             </Button>
           </DialogTrigger>
@@ -273,6 +275,7 @@ export function ControlPanel({ onUndo }: ControlPanelProps = {}) {
                   type="checkbox"
                   className="h-7 w-7 accent-slate-900"
                   checked={draftTimerVisible}
+                  disabled={isInputLocked}
                   onChange={(event) => setDraftTimerVisible(event.target.checked)}
                 />
               </label>
@@ -286,6 +289,7 @@ export function ControlPanel({ onUndo }: ControlPanelProps = {}) {
                   type="checkbox"
                   className="h-7 w-7 accent-slate-900"
                   checked={draftUndoEnabled}
+                  disabled={isInputLocked}
                   onChange={(event) => setDraftUndoEnabled(event.target.checked)}
                 />
               </label>
@@ -295,13 +299,14 @@ export function ControlPanel({ onUndo }: ControlPanelProps = {}) {
                 variant="outline"
                 className="h-12 border-slate-400 px-6 text-base text-slate-900 cursor-pointer"
                 onClick={handleCancelOptions}
+                disabled={isInputLocked}
               >
                 Cancel
               </Button>
               <Button
                 className="h-12 bg-slate-800 px-6 text-base text-white hover:bg-slate-900 cursor-pointer"
                 onClick={handleSaveOptions}
-                disabled={!hasOptionChanges}
+                disabled={isInputLocked || !hasOptionChanges}
               >
                 {saveLabel}
               </Button>
@@ -326,12 +331,14 @@ export function ControlPanel({ onUndo }: ControlPanelProps = {}) {
                 variant="outline"
                 className="h-12 border-slate-400 px-6 text-base text-slate-900 cursor-pointer"
                 onClick={() => setConfirmOpen(false)}
+                disabled={isInputLocked}
               >
                 Keep Editing
               </Button>
               <Button
                 className="h-12 bg-slate-800 px-6 text-base text-white hover:bg-slate-900 cursor-pointer"
                 onClick={handleDiscardChanges}
+                disabled={isInputLocked}
               >
                 Discard
               </Button>
@@ -341,7 +348,7 @@ export function ControlPanel({ onUndo }: ControlPanelProps = {}) {
 
         <Dialog>
           <DialogTrigger asChild>
-            <Button variant="outline" className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer">
+            <Button variant="outline" className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer" disabled={isInputLocked}>
               About
             </Button>
           </DialogTrigger>
@@ -373,6 +380,7 @@ export function ControlPanel({ onUndo }: ControlPanelProps = {}) {
                 )
               }
               onClick={toggleDevMode}
+              disabled={isInputLocked}
             >
               Anything goes
             </Button>

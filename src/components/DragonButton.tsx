@@ -71,20 +71,10 @@ export function DragonButton({ color, onCollect, disabled }: Readonly<DragonButt
   }
 
   const getStyles = () => {
-    const base = "w-16 h-12 rounded-md border-2 flex items-center justify-center transition-all duration-100 active:scale-95 active:brightness-90"
+    const base = "w-16 h-12 rounded-md border-2 flex items-center justify-center transition-all duration-200 ease-out active:scale-95 active:brightness-90 disabled:pointer-events-auto disabled:cursor-not-allowed"
 
-    if (disabled) {
-      return cn(base, "opacity-50 cursor-not-allowed")
-    }
-
-    if (isCollected) {
-      return cn(base, "bg-slate-800 border-slate-700 text-slate-600 opacity-50 cursor-not-allowed")
-    }
-
-    if (!canCollect) {
-      if (color === 'green') return cn(base, "bg-emerald-900/30 border-emerald-900/50 text-emerald-700 cursor-not-allowed")
-      if (color === 'red') return cn(base, "bg-red-900/30 border-red-900/50 text-red-700 cursor-not-allowed")
-      return cn(base, "bg-black/30 border-black/50 text-black/70 cursor-not-allowed")
+    if (disabled || isCollected || !canCollect) {
+      return cn(base, "opacity-50")
     }
 
     if (color === 'green') return cn(base, "bg-emerald-500 border-emerald-600 text-white shadow-[0_0_15px_rgba(16,185,129,0.6)] cursor-pointer hover:bg-emerald-400")
