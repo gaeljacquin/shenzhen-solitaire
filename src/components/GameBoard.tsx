@@ -19,7 +19,10 @@ function DroppableZone({ id, children, className }: Readonly<{ id: string, child
     <div
       ref={setNodeRef}
       data-zone-id={id}
-      className={cn(className, isOver && "ring-2 ring-black ring-opacity-50")}
+      className={cn(
+        className,
+        isOver && "ring-2 ring-inset ring-white/80 border-white/80",
+      )}
     >
       {children}
     </div>
