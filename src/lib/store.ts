@@ -28,6 +28,7 @@ interface GameState {
   timerRunning: boolean
   isTimerVisible: boolean
   isUndoEnabled: boolean
+  isNoAutoMoveFirstMove: boolean
   isLocked?: boolean
 }
 
@@ -64,6 +65,7 @@ function shuffle<T>(array: Array<T>): Array<T> {
 
 const TIMER_VISIBILITY_KEY = 'shenzhen-solitaire-timer-visible'
 const UNDO_ENABLED_KEY = 'shenzhen-solitaire-undo-enabled'
+const NO_AUTO_MOVE_FIRST_MOVE_KEY = 'shenzhen-solitaire-no-auto-move-first-move'
 
 function getTimerVisibilityFromStorage(): boolean {
   try {
@@ -97,24 +99,58 @@ function saveUndoEnabledToStorage(enabled: boolean): void {
   }
 }
 
-function dealCards(): { columns: Array<Array<Card>>, freeCells: Array<Card | null> } {
-  const deck = shuffle(createDeck())
-  const columns: Array<Array<Card>> = Array.from({ length: 8 }, () => [])
-  const cardsPerColumn = Math.floor(deck.length / columns.length)
-  let deckIndex = 0
+function getNoAutoMoveFirstMoveFromStorage(): boolean {
+  try {
+    const stored = globalThis.localStorage.getItem(NO_AUTO_MOVE_FIRST_MOVE_KEY)
+    return stored === 'true'
+  } catch {
+    return false
+  }
+}
 
-  for (const column of columns) {
-    for (let i = 0; i < cardsPerColumn; i++) {
-      const card = deck[deckIndex]
-      column.push(card)
-      deckIndex += 1
+function saveNoAutoMoveFirstMoveToStorage(enabled: boolean): void {
+  try {
+    globalThis.localStorage.setItem(NO_AUTO_MOVE_FIRST_MOVE_KEY, String(enabled))
+  } catch {
+  }
+}
+
+function dealCards(
+  options: { noAutoMoveFirstMove?: boolean } = {},
+): { columns: Array<Array<Card>>, freeCells: Array<Card | null> } {
+  const { noAutoMoveFirstMove = false } = options
+
+  const dealOnce = () => {
+    const deck = shuffle(createDeck())
+    const columns: Array<Array<Card>> = Array.from({ length: 8 }, () => [])
+    const cardsPerColumn = Math.floor(deck.length / columns.length)
+    let deckIndex = 0
+
+    for (const column of columns) {
+      for (let i = 0; i < cardsPerColumn; i++) {
+        const card = deck[deckIndex]
+        column.push(card)
+        deckIndex += 1
+      }
+    }
+
+    return {
+      columns,
+      freeCells: [null, null, null],
     }
   }
 
-  return {
-    columns,
-    freeCells: [null, null, null]
+  if (!noAutoMoveFirstMove) return dealOnce()
+
+  const maxAttempts = 500
+  let attempt = 0
+  let deal = dealOnce()
+  while (attempt < maxAttempts && hasAutoMoveOnDeal(deal.columns)) {
+    attempt += 1
+    deal = dealOnce()
   }
+
+  return deal
 }
 
 export const gameStore = new Store<GameState>({
@@ -142,6 +178,7 @@ export const gameStore = new Store<GameState>({
   timerRunning: false,
   isTimerVisible: true,
   isUndoEnabled: true,
+  isNoAutoMoveFirstMove: false,
   isLocked: false,
 })
 
@@ -156,6 +193,13 @@ export function syncUndoEnabled() {
   gameStore.setState(state => ({
     ...state,
     isUndoEnabled: getUndoEnabledFromStorage()
+  }))
+}
+
+export function syncNoAutoMoveFirstMove() {
+  gameStore.setState(state => ({
+    ...state,
+    isNoAutoMoveFirstMove: getNoAutoMoveFirstMoveFromStorage(),
   }))
 }
 
@@ -191,6 +235,7 @@ function createHistoryEntry(state: GameState, isAuto = false): HistoryEntry {
     timerRunning: state.timerRunning,
     isTimerVisible: state.isTimerVisible,
     isUndoEnabled: state.isUndoEnabled,
+    isNoAutoMoveFirstMove: state.isNoAutoMoveFirstMove,
     isLocked: state.isLocked,
     isAuto,
   }
@@ -380,6 +425,14 @@ function shouldAutoMoveCard(state: GameState, card: Card, isFoundationFull: bool
   if (card.kind === 'normal') return card.value === 1
   if (card.kind === 'flower') return isFoundationFull || !state.foundations.flower
   return false
+}
+
+function hasAutoMoveOnDeal(columns: Array<Array<Card>>) {
+  return columns.some(col => {
+    const card = col.at(-1)
+    if (!card) return false
+    return card.kind === 'flower' || (card.kind === 'normal' && card.value === 1)
+  })
 }
 
 function getAutoMoveCandidates(state: GameState, isFoundationFull: boolean) {
@@ -653,7 +706,8 @@ export function computeUndoState(state: GameState): GameState | null {
         status: 'playing' as GameStatus,
         timerRunning: true,
         isTimerVisible: state.isTimerVisible,
-        isUndoEnabled: state.isUndoEnabled
+        isUndoEnabled: state.isUndoEnabled,
+        isNoAutoMoveFirstMove: state.isNoAutoMoveFirstMove,
     }
 
     if (newState.status === 'playing') {
@@ -667,7 +721,8 @@ export function computeUndoState(state: GameState): GameState | null {
             ...previous,
             history: history,
             isTimerVisible: state.isTimerVisible,
-            isUndoEnabled: state.isUndoEnabled
+            isUndoEnabled: state.isUndoEnabled,
+            isNoAutoMoveFirstMove: state.isNoAutoMoveFirstMove,
         }
     }
 
@@ -675,36 +730,75 @@ export function computeUndoState(state: GameState): GameState | null {
 }
 
 export function newGame() {
-    const newState = dealCards()
-    const initialColumns = newState.columns.map(col => [...col])
-    const initialFreeCells = [...newState.freeCells]
-    gameStore.setState((s) => ({
-        columns: newState.columns,
-        freeCells: newState.freeCells,
-        initialColumns,
-        initialFreeCells,
-        foundations: {
-            green: 0,
-            red: 0,
-            black: 0,
-            flower: false
-        },
-        dragons: {
-            green: 0,
-            red: 0,
-            black: 0
-        },
-        status: 'playing',
-        history: [],
-        devMode: s.devMode,
-        gameId: s.gameId + 1,
-        startTime: null,
-        elapsedTime: 0,
-        timerRunning: false,
-        isTimerVisible: s.isTimerVisible,
-        isUndoEnabled: s.isUndoEnabled,
-        isLocked: s.isLocked
-    }))
+    gameStore.setState((s) => {
+        const newState = dealCards({ noAutoMoveFirstMove: s.isNoAutoMoveFirstMove })
+        const initialColumns = newState.columns.map(col => [...col])
+        const initialFreeCells = [...newState.freeCells]
+        return {
+            columns: newState.columns,
+            freeCells: newState.freeCells,
+            initialColumns,
+            initialFreeCells,
+            foundations: {
+                green: 0,
+                red: 0,
+                black: 0,
+                flower: false
+            },
+            dragons: {
+                green: 0,
+                red: 0,
+                black: 0
+            },
+            status: 'playing',
+            history: [],
+            devMode: s.devMode,
+            gameId: s.gameId + 1,
+            startTime: null,
+            elapsedTime: 0,
+            timerRunning: false,
+            isTimerVisible: s.isTimerVisible,
+            isUndoEnabled: s.isUndoEnabled,
+            isNoAutoMoveFirstMove: s.isNoAutoMoveFirstMove,
+            isLocked: s.isLocked,
+        }
+    })
+}
+
+export function newGameNoAutoMoveFirstMove() {
+    gameStore.setState((s) => {
+        const newState = dealCards({ noAutoMoveFirstMove: true })
+        const initialColumns = newState.columns.map(col => [...col])
+        const initialFreeCells = [...newState.freeCells]
+        return {
+            columns: newState.columns,
+            freeCells: newState.freeCells,
+            initialColumns,
+            initialFreeCells,
+            foundations: {
+                green: 0,
+                red: 0,
+                black: 0,
+                flower: false
+            },
+            dragons: {
+                green: 0,
+                red: 0,
+                black: 0
+            },
+            status: 'playing',
+            history: [],
+            devMode: s.devMode,
+            gameId: s.gameId + 1,
+            startTime: null,
+            elapsedTime: 0,
+            timerRunning: false,
+            isTimerVisible: s.isTimerVisible,
+            isUndoEnabled: s.isUndoEnabled,
+            isNoAutoMoveFirstMove: s.isNoAutoMoveFirstMove,
+            isLocked: s.isLocked,
+        }
+    })
 }
 
 export function restartGame() {
@@ -858,5 +952,13 @@ export function setUndoEnabled(enabled: boolean) {
     gameStore.setState(state => ({
         ...state,
         isUndoEnabled: enabled
+    }))
+}
+
+export function setNoAutoMoveFirstMove(enabled: boolean) {
+    saveNoAutoMoveFirstMoveToStorage(enabled)
+    gameStore.setState(state => ({
+        ...state,
+        isNoAutoMoveFirstMove: enabled,
     }))
 }

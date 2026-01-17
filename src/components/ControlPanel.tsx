@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '@tanstack/react-store'
-import { gameStore, newGame, pauseGame, restartGame, resumeGame, setTimerVisibility, setUndoEnabled, syncTimerVisibility, syncUndoEnabled, toggleDevMode, undo, updateTimer } from '@/lib/store'
+import { gameStore, newGame, newGameNoAutoMoveFirstMove, pauseGame, restartGame, resumeGame, setNoAutoMoveFirstMove, setTimerVisibility, setUndoEnabled, syncNoAutoMoveFirstMove, syncTimerVisibility, syncUndoEnabled, toggleDevMode, undo, updateTimer } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -25,6 +25,7 @@ export function ControlPanel({ onUndo, isInputLocked = false }: ControlPanelProp
   const elapsedTime = useStore(gameStore, (state) => state.elapsedTime)
   const isTimerVisible = useStore(gameStore, (state) => state.isTimerVisible)
   const isUndoEnabled = useStore(gameStore, (state) => state.isUndoEnabled)
+  const isNoAutoMoveFirstMove = useStore(gameStore, (state) => state.isNoAutoMoveFirstMove)
 
   const [displayTime, setDisplayTime] = useState("00:00")
   const [optionsOpen, setOptionsOpen] = useState(false)
@@ -33,6 +34,8 @@ export function ControlPanel({ onUndo, isInputLocked = false }: ControlPanelProp
   const [initialTimerVisible, setInitialTimerVisible] = useState(isTimerVisible)
   const [draftUndoEnabled, setDraftUndoEnabled] = useState(isUndoEnabled)
   const [initialUndoEnabled, setInitialUndoEnabled] = useState(isUndoEnabled)
+  const [draftNoAutoMoveFirstMove, setDraftNoAutoMoveFirstMove] = useState(isNoAutoMoveFirstMove)
+  const [initialNoAutoMoveFirstMove, setInitialNoAutoMoveFirstMove] = useState(isNoAutoMoveFirstMove)
 
   useEffect(() => {
     let interval: NodeJS.Timeout
@@ -51,6 +54,7 @@ export function ControlPanel({ onUndo, isInputLocked = false }: ControlPanelProp
   useEffect(() => {
     syncTimerVisibility()
     syncUndoEnabled()
+    syncNoAutoMoveFirstMove()
   }, [])
 
   useEffect(() => {
@@ -66,14 +70,17 @@ export function ControlPanel({ onUndo, isInputLocked = false }: ControlPanelProp
     setInitialTimerVisible(isTimerVisible)
     setDraftUndoEnabled(isUndoEnabled)
     setInitialUndoEnabled(isUndoEnabled)
-  }, [optionsOpen, isTimerVisible, isUndoEnabled])
+    setDraftNoAutoMoveFirstMove(isNoAutoMoveFirstMove)
+    setInitialNoAutoMoveFirstMove(isNoAutoMoveFirstMove)
+  }, [optionsOpen, isTimerVisible, isUndoEnabled, isNoAutoMoveFirstMove])
 
   const isDevEnv = import.meta.env.DEV
   const optionsRequiringRestart = new Set(['undo-moves'])
   const isGameInProgress = status === 'playing' || status === 'paused'
   const timerChanged = draftTimerVisible !== initialTimerVisible
   const undoChanged = draftUndoEnabled !== initialUndoEnabled
-  const hasOptionChanges = timerChanged || undoChanged
+  const noAutoMoveChanged = draftNoAutoMoveFirstMove !== initialNoAutoMoveFirstMove
+  const hasOptionChanges = timerChanged || undoChanged || noAutoMoveChanged
   const needsRestart = isGameInProgress && undoChanged && optionsRequiringRestart.has('undo-moves')
   const saveLabel = needsRestart ? 'Save (with restart)' : 'Save'
   const hasManualMoves = history.some(entry => !entry.isAuto)
@@ -119,6 +126,9 @@ export function ControlPanel({ onUndo, isInputLocked = false }: ControlPanelProp
       }
       if (undoChanged) {
         setUndoEnabled(draftUndoEnabled)
+      }
+      if (noAutoMoveChanged) {
+        setNoAutoMoveFirstMove(draftNoAutoMoveFirstMove)
       }
     }
 
@@ -302,6 +312,20 @@ export function ControlPanel({ onUndo, isInputLocked = false }: ControlPanelProp
                   onChange={(event) => setDraftUndoEnabled(event.target.checked)}
                 />
               </label>
+              <label
+                htmlFor="no-auto-move-first-move"
+                className="flex w-full cursor-pointer items-center justify-between gap-6 rounded-lg border border-slate-300 bg-white/80 p-4 text-lg font-semibold"
+              >
+                {renderOptionLabel('No 1s or Flower Card on deal', 'no-auto-move-first-move', noAutoMoveChanged)}
+                <input
+                  id="no-auto-move-first-move"
+                  type="checkbox"
+                  className="h-7 w-7 accent-slate-900"
+                  checked={draftNoAutoMoveFirstMove}
+                  disabled={isInputLocked}
+                  onChange={(event) => setDraftNoAutoMoveFirstMove(event.target.checked)}
+                />
+              </label>
             </div>
             <DialogFooter className="gap-3 w-full sm:justify-between">
               <Button
@@ -377,13 +401,13 @@ export function ControlPanel({ onUndo, isInputLocked = false }: ControlPanelProp
       {/* 3. Dev Section (Visible only in Dev Environment) */}
       {isDevEnv && (
         <div className="flex flex-col items-center gap-2 p-4 border-t border-white/10 w-full mt-4">
-          <div className="text-xs uppercase tracking-widest text-white/50 font-semibold">Dev Toggles</div>
-          <div className="flex gap-2">
+          <div className="text-xs uppercase tracking-widest text-white/50 font-semibold">Dev Tools</div>
+          <div className="flex gap-4">
             <Button
               variant="outline"
               className={
                 cn(devMode
-                  ? "bg-slate-900/50 border-slate-500 text-white shadow-[0_0_10px_rgba(220,38,38,0.2)]"
+                  ? "bg-slate-900/50 border-slate-500 text-white shadow-[0_0_10px_rgba(220,38,38,0.2)] hover:bg-slate-900 hover:border-slate-600 hover:text-white"
                   : "bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200",
                   "cursor-pointer",
                 )
@@ -391,7 +415,15 @@ export function ControlPanel({ onUndo, isInputLocked = false }: ControlPanelProp
               onClick={toggleDevMode}
               disabled={isInputLocked}
             >
-              Anything goes
+              All tableau moves are valid
+            </Button>
+            <Button
+              variant="outline"
+              className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer"
+              onClick={newGameNoAutoMoveFirstMove}
+              disabled={isInputLocked}
+            >
+              New game w/o first move auto-moves
             </Button>
           </div>
         </div>

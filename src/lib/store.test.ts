@@ -4,6 +4,7 @@ import type { Card } from '@/lib/types'
 
 // Helper to reset store for tests
 function resetStore() {
+    gameStore.setState(s => ({ ...s, isNoAutoMoveFirstMove: false }))
     newGame()
     gameStore.setState(s => ({ ...s, devMode: false }))
 }
@@ -322,6 +323,7 @@ describe('Shenzhen Solitaire Store', () => {
             timerRunning: false,
             isTimerVisible: true,
             isUndoEnabled: true,
+            isNoAutoMoveFirstMove: false,
             initialColumns: [],
             initialFreeCells: [],
         })
@@ -392,5 +394,17 @@ describe('Shenzhen Solitaire Store', () => {
         expect(gameStore.state.status).toBe('playing')
         moveCard('c1', 'free-0')
         expect(gameStore.state.columns[0].length).toBe(0) // Move allowed
+    })
+
+    it('deals without auto-move candidates when option enabled', () => {
+        gameStore.setState(state => ({ ...state, isNoAutoMoveFirstMove: true }))
+        newGame()
+
+        const topCards = gameStore.state.columns.map(column => column.at(-1))
+        const hasAutoMoveCandidate = topCards.some(card => {
+            if (!card) return false
+            return card.kind === 'flower' || (card.kind === 'normal' && card.value === 1)
+        })
+        expect(hasAutoMoveCandidate).toBe(false)
     })
 })
