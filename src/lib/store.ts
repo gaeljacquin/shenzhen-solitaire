@@ -667,6 +667,14 @@ export function updateTimer(elapsed: number) {
     }))
 }
 
+export function setTimerVisibility(visible: boolean) {
+    saveTimerVisibilityToStorage(visible)
+    gameStore.setState(state => ({
+        ...state,
+        isTimerVisible: visible
+    }))
+}
+
 export function toggleTimerVisibility() {
     gameStore.setState(state => {
         const newVisibility = !state.isTimerVisible

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '@tanstack/react-store'
-import { TimerIcon, TimerOffIcon } from 'lucide-react'
-import { gameStore, newGame, pauseGame, restartGame, resumeGame, syncTimerVisibility, toggleDevMode, toggleTimerVisibility, undo, updateTimer } from '@/lib/store'
+import { gameStore, newGame, pauseGame, restartGame, resumeGame, setTimerVisibility, syncTimerVisibility, toggleDevMode, undo, updateTimer } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -16,6 +15,10 @@ export function ControlPanel() {
   const isTimerVisible = useStore(gameStore, (state) => state.isTimerVisible)
 
   const [displayTime, setDisplayTime] = useState("00:00")
+  const [optionsOpen, setOptionsOpen] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [draftTimerVisible, setDraftTimerVisible] = useState(isTimerVisible)
+  const [initialTimerVisible, setInitialTimerVisible] = useState(isTimerVisible)
 
   useEffect(() => {
     let interval: NodeJS.Timeout
@@ -42,7 +45,51 @@ export function ControlPanel() {
     setDisplayTime(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`)
   }, [elapsedTime])
 
+  useEffect(() => {
+    if (!optionsOpen) return
+    setDraftTimerVisible(isTimerVisible)
+    setInitialTimerVisible(isTimerVisible)
+  }, [optionsOpen, isTimerVisible])
+
   const isDevEnv = import.meta.env.DEV
+  const hasOptionChanges = draftTimerVisible !== initialTimerVisible
+
+  const handleOptionsOpenChange = (nextOpen: boolean) => {
+    if (nextOpen) {
+      setOptionsOpen(true)
+      return
+    }
+
+    if (hasOptionChanges) {
+      setConfirmOpen(true)
+      return
+    }
+
+    setOptionsOpen(false)
+  }
+
+  const handleCancelOptions = () => {
+    if (hasOptionChanges) {
+      setConfirmOpen(true)
+      return
+    }
+
+    setOptionsOpen(false)
+  }
+
+  const handleSaveOptions = () => {
+    if (hasOptionChanges) {
+      setTimerVisibility(draftTimerVisible)
+    }
+
+    setConfirmOpen(false)
+    setOptionsOpen(false)
+  }
+
+  const handleDiscardChanges = () => {
+    setConfirmOpen(false)
+    setOptionsOpen(false)
+  }
 
   return (
     <div className="flex flex-col items-center w-full max-w-7xl px-4 gap-2 mt-4">
@@ -52,7 +99,7 @@ export function ControlPanel() {
           "text-3xl font-mono font-bold text-white tracking-wider drop-shadow-md flex gap-2 h-9",
           status === 'paused' || status === 'won' ? "opacity-100" : (isTimerVisible ? "opacity-100" : "opacity-0")
         )}>
-          {status === 'paused' ? 'PAUSED' : status === 'won' ? `VICTORY - ${displayTime}` : displayTime}
+          {status === 'paused' ? 'PAUSED' : status === 'won' ? (isTimerVisible ? `VICTORY - ${displayTime}` : 'VICTORY') : displayTime}
         </div>
       </div>
 
@@ -78,21 +125,6 @@ export function ControlPanel() {
           disabled={status === 'idle' || status === 'won'}
         >
           Pause
-        </Button>
-
-        <Button
-          variant="outline"
-          size="icon"
-          className={cn(
-            "border-slate-300 transition-colors cursor-pointer",
-            !isTimerVisible
-              ? "bg-slate-300 text-slate-600 hover:bg-slate-400"
-              : "bg-slate-100 text-slate-900 hover:bg-slate-200"
-          )}
-          onClick={toggleTimerVisibility}
-          title={isTimerVisible ? "Hide Timer" : "Show Timer"}
-        >
-          {isTimerVisible ? <TimerIcon className="size-4" /> : <TimerOffIcon className="size-4" />}
         </Button>
 
         <Dialog>
@@ -179,6 +211,87 @@ export function ControlPanel() {
           </DialogContent>
         </Dialog>
 
+        <Dialog open={optionsOpen} onOpenChange={handleOptionsOpenChange}>
+          <DialogTrigger asChild>
+            <Button variant="outline" className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer">
+              Options
+            </Button>
+          </DialogTrigger>
+          <DialogContent
+            className="bg-[#FDF6E3] text-slate-900 border-slate-400 max-w-2xl p-8 flex flex-col gap-12"
+            showCloseButton={false}
+            onInteractOutside={(event) => event.preventDefault()}
+          >
+            <DialogHeader>
+              <DialogTitle className="text-2xl">Options</DialogTitle>
+              <DialogDescription className="text-slate-700 text-sm">
+                <span>Changes marked with <span className="font-bold">*</span> require restarting an ongoing game.</span>
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <label
+                htmlFor="timer-visibility"
+                className="flex w-full cursor-pointer items-center justify-between gap-6 rounded-lg border border-slate-300 bg-white/80 p-4 text-lg font-semibold"
+              >
+                <span>Timer</span>
+                <input
+                  id="timer-visibility"
+                  type="checkbox"
+                  className="h-7 w-7 accent-slate-900"
+                  checked={draftTimerVisible}
+                  onChange={(event) => setDraftTimerVisible(event.target.checked)}
+                />
+              </label>
+            </div>
+            <DialogFooter className="gap-3">
+              <Button
+                variant="outline"
+                className="h-12 border-slate-400 px-6 text-base text-slate-900 cursor-pointer"
+                onClick={handleCancelOptions}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="h-12 bg-slate-800 px-6 text-base text-white hover:bg-slate-900 cursor-pointer"
+                onClick={handleSaveOptions}
+                disabled={!hasOptionChanges}
+              >
+                Save
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+          <DialogContent
+            className="bg-[#FDF6E3] text-slate-900 border-slate-400 max-w-xl p-8"
+            showCloseButton={false}
+            onInteractOutside={(event) => event.preventDefault()}
+          >
+            <DialogHeader>
+              <DialogTitle className="text-xl">Discard changes?</DialogTitle>
+              <DialogDescription className="text-base text-slate-700">
+                You have unsaved changes. Discard them or keep editing.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="gap-3">
+              <Button
+                variant="outline"
+                className="h-12 border-slate-400 px-6 text-base text-slate-900 cursor-pointer"
+                onClick={() => setConfirmOpen(false)}
+              >
+                Keep Editing
+              </Button>
+              <Button
+                className="h-12 bg-slate-800 px-6 text-base text-white hover:bg-slate-900 cursor-pointer"
+                onClick={handleDiscardChanges}
+              >
+                Discard
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         <Dialog>
           <DialogTrigger asChild>
             <Button variant="outline" className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer">
@@ -214,7 +327,7 @@ export function ControlPanel() {
               }
               onClick={toggleDevMode}
             >
-              Move Any
+              Anything goes
             </Button>
           </div>
         </div>
