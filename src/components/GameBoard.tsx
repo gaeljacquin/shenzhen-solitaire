@@ -74,6 +74,8 @@ const getAutoSolveMoves = (currentState: GameState) => {
   return moves.length > 0 ? moves : null
 }
 
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
 const getDragonLocationsForState = (currentState: GameState, color: DragonColor) => {
   const locations: Array<DragonLocation> = []
 
@@ -163,6 +165,7 @@ export function GameBoard() {
   const [dealtCounts, setDealtCounts] = useState<Array<number>>(() => new Array(8).fill(0))
   const dealRunRef = useRef(0)
   const dealCancelledRef = useRef(false)
+  const previousStatusRef = useRef<GameState['status']>(state.status)
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -175,7 +178,7 @@ export function GameBoard() {
   const [activeId, setActiveId] = useState<string | null>(null)
   const [draggedStack, setDraggedStack] = useState<Array<CardType>>([])
   const isUiLocked = isDealingCards || isFlipping || isAutoMoving
-  const isBoardLocked = isUiLocked || isUndoing
+  const isBoardLocked = isUiLocked || isUndoing || state.status === 'paused'
 
   useEffect(() => {
     if (state.status === 'idle') {
@@ -201,7 +204,6 @@ export function GameBoard() {
     return Boolean(getAutoSolveMoves(state))
   }, [state.foundations, state.columns, state.freeCells])
 
-  const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
   const shouldHideCard = (cardId: string) => movingCardIds.has(cardId)
   const removeFloatingCard = (animationId: string) => {
     setFloatingCards(prev => prev.filter(item => item.id !== animationId))
@@ -980,7 +982,30 @@ export function GameBoard() {
     return () => {
       dealCancelledRef.current = true
     }
-  }, [state.gameId, state.status])
+  }, [state.gameId])
+
+  useEffect(() => {
+    const previousStatus = previousStatusRef.current
+    if (previousStatus === state.status) return
+    previousStatusRef.current = state.status
+
+    const runPauseFlip = async (faceDown: boolean) => {
+      const flipDurationMs = 500
+      setIsFlipping(true)
+      setAreCardsFaceDown(faceDown)
+      await wait(flipDurationMs)
+      setIsFlipping(false)
+    }
+
+    if (previousStatus === 'playing' && state.status === 'paused') {
+      runPauseFlip(true)
+      return
+    }
+
+    if (previousStatus === 'paused' && state.status === 'playing') {
+      runPauseFlip(false)
+    }
+  }, [state.status])
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
@@ -1058,7 +1083,6 @@ export function GameBoard() {
                             isBeingDragged && "opacity-0",
                             shouldHideCard(card.id) && "opacity-0 instant-hide",
                             isMovingCard && "pointer-events-none",
-                            state.status === 'paused' && "opacity-0"
                           )}
                           disableLayout={movingCardIds.has(card.id) || skipLayoutIds.has(card.id)}
                           onClick={() => handleCardClick(card)}
@@ -1218,7 +1242,6 @@ export function GameBoard() {
                           isBeingDragged ? "opacity-0" : "",
                           shouldHideCard(card.id) && "opacity-0 instant-hide",
                           movingCardIds.has(card.id) && "pointer-events-none",
-                          state.status === 'paused' ? "opacity-0" : ""
                         )}
                         disableLayout={skipLayoutIds.has(card.id) || movingCardIds.has(card.id) || movingColumnIds.has(columnIndex)}
                         onClick={() => handleCardClick(card)}
