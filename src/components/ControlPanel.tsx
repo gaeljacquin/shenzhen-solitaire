@@ -10,6 +10,12 @@ type ControlPanelProps = {
   isInputLocked?: boolean
 }
 
+function getTimerLabel(status: string, isTimerVisible: boolean, displayTime: string) {
+  if (status === 'paused') return 'PAUSED'
+  if (status === 'won') return isTimerVisible ? `VICTORY - ${displayTime}` : 'VICTORY'
+  return displayTime
+}
+
 export function ControlPanel({ onUndo, isInputLocked = false }: ControlPanelProps = {}) {
   const status = useStore(gameStore, (state) => state.status)
   const history = useStore(gameStore, (state) => state.history)
@@ -72,6 +78,9 @@ export function ControlPanel({ onUndo, isInputLocked = false }: ControlPanelProp
   const saveLabel = needsRestart ? 'Save (with restart)' : 'Save'
   const hasManualMoves = history.some(entry => !entry.isAuto)
   const areYouSureText = 'Are you sure? All progress made will be lost.'
+  const timerOpacityClass =
+    status === 'paused' || status === 'won' || isTimerVisible ? 'opacity-100' : 'opacity-0'
+  const timerLabel = getTimerLabel(status, isTimerVisible, displayTime)
 
   const renderOptionLabel = (label: string, optionId: string, isChanged: boolean) => (
     <span className={cn(isChanged ? 'italic' : 'not-italic')}>
@@ -132,9 +141,9 @@ export function ControlPanel({ onUndo, isInputLocked = false }: ControlPanelProp
       <div className="flex justify-center transition-opacity duration-300">
         <div className={cn(
           "text-3xl font-mono font-bold text-white tracking-wider drop-shadow-md flex gap-2 h-9",
-          status === 'paused' || status === 'won' ? "opacity-100" : (isTimerVisible ? "opacity-100" : "opacity-0")
+          timerOpacityClass,
         )}>
-          {status === 'paused' ? 'PAUSED' : status === 'won' ? (isTimerVisible ? `VICTORY - ${displayTime}` : 'VICTORY') : displayTime}
+          {timerLabel}
         </div>
       </div>
 

@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { gameStore, moveCard, collectDragons, undo, pauseGame, resumeGame, newGame, autoSolve, triggerAutoMove } from './store'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { autoSolve, collectDragons, gameStore, moveCard, newGame, pauseGame, resumeGame, triggerAutoMove, undo } from './store'
 import type { Card } from '@/lib/types'
 
 // Helper to reset store for tests
@@ -88,7 +88,7 @@ describe('Shenzhen Solitaire Store', () => {
     })
 
     it('collects dragons', () => {
-        const dragons: Card[] = [0, 1, 2, 3].map(i => ({ id: `dragon-green-${i}`, kind: 'dragon', color: 'green' }))
+        const dragons: Array<Card> = [0, 1, 2, 3].map(i => ({ id: `dragon-green-${i}`, kind: 'dragon', color: 'green' }))
 
         // Place 3 in columns, 1 in free cell
         gameStore.setState(s => ({
@@ -106,15 +106,15 @@ describe('Shenzhen Solitaire Store', () => {
         expect(state.columns[1].length).toBe(0)
         expect(state.columns[2].length).toBe(0)
 
-        const lockedCell = state.freeCells.find(c => c?.kind === 'dragon' && (c as any).isLocked)
+        const lockedCell = state.freeCells.find(c => c?.kind === 'dragon' && c.isLocked)
         expect(lockedCell).toBeDefined()
-        if (lockedCell && lockedCell.kind === 'dragon') {
-            expect(lockedCell.color).toBe('green')
-        }
+        if (!lockedCell) throw new Error('Expected a locked dragon cell')
+        expect(lockedCell.kind).toBe('dragon')
+        expect(lockedCell.color).toBe('green')
     })
 
     it('collects dragons to leftmost free cell', () => {
-        const dragons: Card[] = [0, 1, 2, 3].map(i => ({ id: `dragon-green-${i}`, kind: 'dragon', color: 'green' }))
+        const dragons: Array<Card> = [0, 1, 2, 3].map(i => ({ id: `dragon-green-${i}`, kind: 'dragon', color: 'green', isLocked: true }))
 
         // Place dragons in free cells 0 and 2, and two in columns
         gameStore.setState(s => ({
@@ -130,7 +130,7 @@ describe('Shenzhen Solitaire Store', () => {
         expect(state.dragons.green).toBe(1)
         // Should consolidate to free cell 0 (leftmost occupied)
         expect(state.freeCells[0]).toBeDefined()
-        expect((state.freeCells[0] as any).isLocked).toBe(true)
+        expect(state.freeCells[0]?.isLocked).toBe(true)
         expect(state.freeCells[2]).toBeNull()
     })
 
@@ -234,12 +234,11 @@ describe('Shenzhen Solitaire Store', () => {
         const state = gameStore.state
         expect(state.dragons.green).toBe(1) // Collected
         // Should have a locked cell
-        const lockedCell = state.freeCells.find(c => c?.kind === 'dragon' && (c as any).isLocked)
+        const lockedCell = state.freeCells.find(c => c?.kind === 'dragon' && c.isLocked)
         expect(lockedCell).toBeDefined()
-        expect(lockedCell?.kind).toBe('dragon')
-        if (lockedCell && lockedCell.kind === 'dragon') {
-            expect(lockedCell.color).toBe('green')
-        }
+        if (!lockedCell) throw new Error('Expected a locked dragon cell')
+        expect(lockedCell.kind).toBe('dragon')
+        expect(lockedCell.color).toBe('green')
 
         // Other dragons should be gone
         expect(state.columns[0].length).toBe(0)
@@ -247,17 +246,17 @@ describe('Shenzhen Solitaire Store', () => {
 
     it('undo reverts moves', () => {
         // Make a move
-        const card = gameStore.state.columns[0][gameStore.state.columns[0].length - 1]
+        const card = gameStore.state.columns[0].at(-1)
         // Find an empty free cell
-        moveCard(card.id, 'free-0')
+        moveCard(card?.id ?? '', 'free-0')
 
-        expect(gameStore.state.freeCells[0]?.id).toBe(card.id)
+        expect(gameStore.state.freeCells[0]?.id).toBe(card?.id)
 
         undo()
 
         expect(gameStore.state.freeCells[0]).toBeNull()
         const col = gameStore.state.columns[0]
-        expect(col[col.length - 1].id).toBe(card.id)
+        expect(col.at(-1)?.id).toBe(card?.id)
     })
 
     it('grouped undo reverts auto-moves together with manual move', () => {
@@ -305,7 +304,7 @@ describe('Shenzhen Solitaire Store', () => {
 
         // Should NOT move, even in dev mode (as per requirements, locked cells are locked)
         expect(gameStore.state.columns[0].length).toBe(1)
-        expect((gameStore.state.freeCells[0] as any)?.isLocked).toBe(true)
+        expect(gameStore.state.freeCells[0]?.isLocked).toBe(true)
     })
 
     it('initial auto-moves do not create undo history', () => {
@@ -321,7 +320,10 @@ describe('Shenzhen Solitaire Store', () => {
             startTime: null,
             elapsedTime: 0,
             timerRunning: false,
-            isTimerVisible: true
+            isTimerVisible: true,
+            isUndoEnabled: true,
+            initialColumns: [],
+            initialFreeCells: [],
         })
 
         // Trigger auto move (simulate what happens after deal)
@@ -363,10 +365,8 @@ describe('Shenzhen Solitaire Store', () => {
         moveCard('c1', 'free-0')
         const card = gameStore.state.freeCells[0]
         expect(card).not.toBeNull()
-        if (card && card.kind === 'dragon') {
-            expect((card as any).isLocked).toBe(true)
-            expect(card.color).toBe('green')
-        }
+        expect(card?.kind).toBe('normal')
+        expect(card?.color).toBe('green')
         expect(gameStore.state.freeCells[0]?.id).toBe('c1')
         expect(gameStore.state.history.length).toBe(1)
 

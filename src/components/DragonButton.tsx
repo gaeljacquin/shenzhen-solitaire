@@ -12,6 +12,46 @@ interface DragonButtonProps {
   disabled?: boolean
 }
 
+type DragonLocation = { type: 'col'; index: number } | { type: 'free'; index: number }
+
+const DRAGON_IDS = [0, 1, 2, 3]
+
+function getDragonLocations(
+  color: DragonColor,
+  columns: Array<Array<{ id: string }>>,
+  freeCells: Array<{ id: string } | null>,
+) {
+  const locations: Array<DragonLocation> = []
+
+  for (const idSuffix of DRAGON_IDS) {
+    const id = `dragon-${color}-${idSuffix}`
+    const freeIdx = freeCells.findIndex(c => c?.id === id)
+    if (freeIdx !== -1) {
+      locations.push({ type: 'free', index: freeIdx })
+      continue
+    }
+
+    const colIndex = columns.findIndex(col => col.at(-1)?.id === id)
+    if (colIndex !== -1) {
+      locations.push({ type: 'col', index: colIndex })
+      continue
+    }
+
+    return { locations, allFound: false }
+  }
+
+  return { locations, allFound: true }
+}
+
+function getDragonTargetFreeIndex(
+  locations: Array<DragonLocation>,
+  freeCells: Array<unknown>,
+) {
+  const occupied = locations.find(loc => loc.type === 'free')
+  if (occupied) return occupied.index
+  return freeCells.indexOf(null)
+}
+
 export function DragonButton({ color, onCollect, disabled }: Readonly<DragonButtonProps>) {
   const dragons = useStore(gameStore, (state) => state.dragons[color])
   const columns = useStore(gameStore, (state) => state.columns)
@@ -25,41 +65,11 @@ export function DragonButton({ color, onCollect, disabled }: Readonly<DragonButt
     if (isCollected) return false
     if (status !== 'playing' && !devMode) return false
 
-    const dragonIds = [0, 1, 2, 3].map(i => `dragon-${color}-${i}`)
-    const locations: Array<{ type: 'col', index: number } | { type: 'free', index: number }> = []
+    const { locations, allFound } = getDragonLocations(color, columns, freeCells)
+    if (!allFound && !devMode) return false
+    if (locations.length !== DRAGON_IDS.length && !devMode) return false
 
-    for (const id of dragonIds) {
-      const freeIdx = freeCells.findIndex(c => c?.id === id)
-      if (freeIdx !== -1) {
-        locations.push({ type: 'free', index: freeIdx })
-        continue
-      }
-      let foundInCol = false
-      for (let i = 0; i < columns.length; i++) {
-        const col = columns[i]
-        if (col.length > 0 && col[col.length - 1].id === id) {
-          locations.push({ type: 'col', index: i })
-          foundInCol = true
-          break
-        }
-      }
-      if (!foundInCol && !devMode) return false
-    }
-
-    if (locations.length !== 4 && !devMode) return false
-
-    let targetFreeIndex = -1
-    for (const loc of locations) {
-      if (loc.type === 'free') {
-        targetFreeIndex = loc.index
-        break
-      }
-    }
-    if (targetFreeIndex === -1) {
-      targetFreeIndex = freeCells.findIndex(c => c === null)
-    }
-
-    return targetFreeIndex !== -1
+    return getDragonTargetFreeIndex(locations, freeCells) !== -1
   }, [columns, freeCells, status, isCollected, color, devMode])
 
   const getIcon = () => {
