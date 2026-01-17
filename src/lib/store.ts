@@ -25,6 +25,7 @@ interface GameState {
   elapsedTime: number
   timerRunning: boolean
   isTimerVisible: boolean
+  isUndoEnabled: boolean
 }
 
 function createDeck(): Card[] {
@@ -59,6 +60,7 @@ function shuffle<T>(array: T[]): T[] {
 }
 
 const TIMER_VISIBILITY_KEY = 'shenzhen-solitaire-timer-visible'
+const UNDO_ENABLED_KEY = 'shenzhen-solitaire-undo-enabled'
 
 function getTimerVisibilityFromStorage(): boolean {
   if (typeof window === 'undefined') return true
@@ -74,6 +76,24 @@ function saveTimerVisibilityToStorage(visible: boolean): void {
   if (typeof window === 'undefined') return
   try {
     localStorage.setItem(TIMER_VISIBILITY_KEY, String(visible))
+  } catch {
+  }
+}
+
+function getUndoEnabledFromStorage(): boolean {
+  if (typeof window === 'undefined') return true
+  try {
+    const stored = localStorage.getItem(UNDO_ENABLED_KEY)
+    return stored === null ? true : stored === 'true'
+  } catch {
+    return true
+  }
+}
+
+function saveUndoEnabledToStorage(enabled: boolean): void {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(UNDO_ENABLED_KEY, String(enabled))
   } catch {
   }
 }
@@ -113,13 +133,21 @@ export const gameStore = new Store<GameState>({
   startTime: null,
   elapsedTime: 0,
   timerRunning: false,
-  isTimerVisible: true
+  isTimerVisible: true,
+  isUndoEnabled: true
 })
 
 export function syncTimerVisibility() {
   gameStore.setState(state => ({
     ...state,
     isTimerVisible: getTimerVisibilityFromStorage()
+  }))
+}
+
+export function syncUndoEnabled() {
+  gameStore.setState(state => ({
+    ...state,
+    isUndoEnabled: getUndoEnabledFromStorage()
   }))
 }
 
@@ -190,6 +218,7 @@ export function moveCard(cardId: string, targetId: string, skipAutoMove: boolean
         elapsedTime: state.elapsedTime,
         timerRunning: state.timerRunning,
         isTimerVisible: state.isTimerVisible,
+        isUndoEnabled: state.isUndoEnabled,
         isAuto: false
     }
 
@@ -333,6 +362,7 @@ export function collectDragons(color: DragonColor) {
             elapsedTime: state.elapsedTime,
             timerRunning: state.timerRunning,
             isTimerVisible: state.isTimerVisible,
+            isUndoEnabled: state.isUndoEnabled,
             isAuto: false
         }
 
@@ -368,6 +398,7 @@ export function collectDragons(color: DragonColor) {
 
 export function undo() {
     gameStore.setState((state) => {
+        if (!state.isUndoEnabled) return state
         if (state.history.length === 0) return state
 
         const history = [...state.history]
@@ -378,7 +409,8 @@ export function undo() {
             history: history,
             status: 'playing' as GameStatus,
             timerRunning: true,
-            isTimerVisible: state.isTimerVisible
+            isTimerVisible: state.isTimerVisible,
+            isUndoEnabled: state.isUndoEnabled
         }
 
         if (newState.status === 'playing') {
@@ -391,7 +423,8 @@ export function undo() {
                 ...newState,
                 ...previous,
                 history: history,
-                isTimerVisible: state.isTimerVisible
+                isTimerVisible: state.isTimerVisible,
+                isUndoEnabled: state.isUndoEnabled
             }
         }
 
@@ -422,7 +455,8 @@ export function newGame() {
         startTime: null,
         elapsedTime: 0,
         timerRunning: false,
-        isTimerVisible: s.isTimerVisible
+        isTimerVisible: s.isTimerVisible,
+        isUndoEnabled: s.isUndoEnabled
     }))
 }
 
@@ -509,6 +543,7 @@ export function performWandMove() {
                         elapsedTime: state.elapsedTime,
                         timerRunning: state.timerRunning,
                         isTimerVisible: state.isTimerVisible,
+                        isUndoEnabled: state.isUndoEnabled,
                         isAuto: false
                     }
                 }
@@ -615,6 +650,7 @@ function autoMoveOnes(state: GameState): GameState {
                     elapsedTime: currentState.elapsedTime,
                     timerRunning: currentState.timerRunning,
                     isTimerVisible: currentState.isTimerVisible,
+                    isUndoEnabled: currentState.isUndoEnabled,
                     isAuto: true // Mark as auto-move
                 }
                 newHistory = [...currentState.history, historyEntry]
@@ -684,4 +720,12 @@ export function toggleTimerVisibility() {
             isTimerVisible: newVisibility
         }
     })
+}
+
+export function setUndoEnabled(enabled: boolean) {
+    saveUndoEnabledToStorage(enabled)
+    gameStore.setState(state => ({
+        ...state,
+        isUndoEnabled: enabled
+    }))
 }

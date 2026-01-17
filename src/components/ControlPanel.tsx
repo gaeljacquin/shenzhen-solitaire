@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '@tanstack/react-store'
-import { gameStore, newGame, pauseGame, restartGame, resumeGame, setTimerVisibility, syncTimerVisibility, toggleDevMode, undo, updateTimer } from '@/lib/store'
+import { gameStore, newGame, pauseGame, restartGame, resumeGame, setTimerVisibility, setUndoEnabled, syncTimerVisibility, syncUndoEnabled, toggleDevMode, undo, updateTimer } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -13,12 +13,15 @@ export function ControlPanel() {
   const timerRunning = useStore(gameStore, (state) => state.timerRunning)
   const elapsedTime = useStore(gameStore, (state) => state.elapsedTime)
   const isTimerVisible = useStore(gameStore, (state) => state.isTimerVisible)
+  const isUndoEnabled = useStore(gameStore, (state) => state.isUndoEnabled)
 
   const [displayTime, setDisplayTime] = useState("00:00")
   const [optionsOpen, setOptionsOpen] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [draftTimerVisible, setDraftTimerVisible] = useState(isTimerVisible)
   const [initialTimerVisible, setInitialTimerVisible] = useState(isTimerVisible)
+  const [draftUndoEnabled, setDraftUndoEnabled] = useState(isUndoEnabled)
+  const [initialUndoEnabled, setInitialUndoEnabled] = useState(isUndoEnabled)
 
   useEffect(() => {
     let interval: NodeJS.Timeout
@@ -36,6 +39,7 @@ export function ControlPanel() {
 
   useEffect(() => {
     syncTimerVisibility()
+    syncUndoEnabled()
   }, [])
 
   useEffect(() => {
@@ -49,10 +53,25 @@ export function ControlPanel() {
     if (!optionsOpen) return
     setDraftTimerVisible(isTimerVisible)
     setInitialTimerVisible(isTimerVisible)
-  }, [optionsOpen, isTimerVisible])
+    setDraftUndoEnabled(isUndoEnabled)
+    setInitialUndoEnabled(isUndoEnabled)
+  }, [optionsOpen, isTimerVisible, isUndoEnabled])
 
   const isDevEnv = import.meta.env.DEV
-  const hasOptionChanges = draftTimerVisible !== initialTimerVisible
+  const optionsRequiringRestart = new Set(['undo-moves'])
+  const isGameInProgress = status === 'playing' || status === 'paused'
+  const timerChanged = draftTimerVisible !== initialTimerVisible
+  const undoChanged = draftUndoEnabled !== initialUndoEnabled
+  const hasOptionChanges = timerChanged || undoChanged
+  const needsRestart = isGameInProgress && undoChanged && optionsRequiringRestart.has('undo-moves')
+  const saveLabel = needsRestart ? 'Save (with restart)' : 'Save'
+
+  const renderOptionLabel = (label: string, optionId: string, isChanged: boolean) => (
+    <span className={cn(isChanged ? 'italic' : 'not-italic')}>
+      {label}
+      {optionsRequiringRestart.has(optionId) && <span className="font-bold">*</span>}
+    </span>
+  )
 
   const handleOptionsOpenChange = (nextOpen: boolean) => {
     if (nextOpen) {
@@ -79,11 +98,20 @@ export function ControlPanel() {
 
   const handleSaveOptions = () => {
     if (hasOptionChanges) {
-      setTimerVisibility(draftTimerVisible)
+      if (timerChanged) {
+        setTimerVisibility(draftTimerVisible)
+      }
+      if (undoChanged) {
+        setUndoEnabled(draftUndoEnabled)
+      }
     }
 
     setConfirmOpen(false)
     setOptionsOpen(false)
+
+    if (needsRestart) {
+      restartGame()
+    }
   }
 
   const handleDiscardChanges = () => {
@@ -108,7 +136,7 @@ export function ControlPanel() {
           variant="outline"
           className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer"
           onClick={undo}
-          disabled={history.length === 0 || status !== 'playing'}
+          disabled={history.length === 0 || status !== 'playing' || !isUndoEnabled}
         >
           Undo
         </Button>
@@ -233,7 +261,7 @@ export function ControlPanel() {
                 htmlFor="timer-visibility"
                 className="flex w-full cursor-pointer items-center justify-between gap-6 rounded-lg border border-slate-300 bg-white/80 p-4 text-lg font-semibold"
               >
-                <span>Timer</span>
+                {renderOptionLabel('Timer', 'timer', timerChanged)}
                 <input
                   id="timer-visibility"
                   type="checkbox"
@@ -242,8 +270,21 @@ export function ControlPanel() {
                   onChange={(event) => setDraftTimerVisible(event.target.checked)}
                 />
               </label>
+              <label
+                htmlFor="undo-enabled"
+                className="flex w-full cursor-pointer items-center justify-between gap-6 rounded-lg border border-slate-300 bg-white/80 p-4 text-lg font-semibold"
+              >
+                {renderOptionLabel('Undo moves', 'undo-moves', undoChanged)}
+                <input
+                  id="undo-enabled"
+                  type="checkbox"
+                  className="h-7 w-7 accent-slate-900"
+                  checked={draftUndoEnabled}
+                  onChange={(event) => setDraftUndoEnabled(event.target.checked)}
+                />
+              </label>
             </div>
-            <DialogFooter className="gap-3">
+            <DialogFooter className="gap-3 w-full sm:justify-between">
               <Button
                 variant="outline"
                 className="h-12 border-slate-400 px-6 text-base text-slate-900 cursor-pointer"
@@ -256,7 +297,7 @@ export function ControlPanel() {
                 onClick={handleSaveOptions}
                 disabled={!hasOptionChanges}
               >
-                Save
+                {saveLabel}
               </Button>
             </DialogFooter>
           </DialogContent>
