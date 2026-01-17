@@ -2,7 +2,7 @@ import { useStore } from '@tanstack/react-store'
 import { Flower, Wand2 } from 'lucide-react'
 import { DndContext,  DragOverlay,  PointerSensor, useDroppable, useSensor, useSensors } from '@dnd-kit/core'
 import { LayoutGroup, motion } from 'motion/react'
-import {  useEffect, useMemo, useState } from 'react'
+import {  useEffect, useMemo, useRef, useState } from 'react'
 import type {DragEndEvent, DragStartEvent} from '@dnd-kit/core';
 import type { CardColor, Card as CardType, DragonColor } from '@/lib/types'
 import type { ReactNode } from 'react';
@@ -37,9 +37,11 @@ export function GameBoard() {
   const state = useStore(gameStore)
   const [cardStyle] = useState<'filled' | 'outlined'>('outlined')
   const [movingCardIds, setMovingCardIds] = useState<Set<string>>(() => new Set())
+  const [movingColumnIds, setMovingColumnIds] = useState<Set<number>>(() => new Set())
   const [floatingCards, setFloatingCards] = useState<Array<FloatingCardMove>>([])
   const [isAutoMoving, setIsAutoMoving] = useState(false)
   const [skipLayoutIds, setSkipLayoutIds] = useState<Set<string>>(() => new Set())
+  const lastClickRef = useRef<{ id: string; time: number } | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -387,37 +389,161 @@ export function GameBoard() {
     return false
   }
 
+  const isFlowerAvailableForState = (currentState: typeof state) => {
+    if (currentState.foundations.flower) return false
+    if (currentState.freeCells.some(c => c?.kind === 'flower')) return true
+    return currentState.columns.some(
+      col => col.length > 0 && col[col.length - 1].kind === 'flower',
+    )
+  }
+
+  const getCardLocation = (currentState: typeof state, cardId: string) => {
+    const freeIndex = currentState.freeCells.findIndex(c => c?.id === cardId)
+    if (freeIndex !== -1) {
+      return { type: 'free' as const, index: freeIndex, isTop: true }
+    }
+
+    for (let i = 0; i < currentState.columns.length; i++) {
+      const column = currentState.columns[i]
+      const cardIndex = column.findIndex(c => c.id === cardId)
+      if (cardIndex !== -1) {
+        return {
+          type: 'col' as const,
+          index: i,
+          isTop: cardIndex === column.length - 1,
+        }
+      }
+    }
+
+    return null
+  }
+
   function handleCardDoubleClick(card: CardType) {
+    if (movingCardIds.has(card.id)) return
+
+    const currentState = gameStore.state
+    if (currentState.status !== 'playing' && !currentState.devMode) return
+    const flowerAvailable = isFlowerAvailableForState(currentState)
+    const location = getCardLocation(currentState, card.id)
+    if (!location || !location.isTop) return
+    if (card.kind === 'dragon' && card.isLocked) return
+
+    const sourceColumnIndex = location.type === 'col' ? location.index : null
+
     let targetFoundationId: string | null = null
     if (card.kind === 'flower') {
-      if (isFlowerAvailable) targetFoundationId = 'foundation-flower'
+      if (flowerAvailable) targetFoundationId = 'foundation-flower'
     } else if (card.kind === 'normal') {
-      const currentVal = state.foundations[card.color]
+      const currentVal = currentState.foundations[card.color]
       if (card.value === currentVal + 1) {
         targetFoundationId = `foundation-${card.color}`
       }
     }
 
     if (targetFoundationId) {
+      setMovingCardIds(prev => new Set(prev).add(card.id))
+      if (sourceColumnIndex !== null) {
+        setMovingColumnIds(prev => {
+          const next = new Set(prev)
+          next.add(sourceColumnIndex)
+          return next
+        })
+      }
+      setSkipLayoutIds(prev => {
+        const next = new Set(prev)
+        next.add(card.id)
+        return next
+      })
+
+      const animation = animateCardMove(card, targetFoundationId)
       moveCard(card.id, targetFoundationId)
+
+      animation.finally(() => {
+        setSkipLayoutIds(prev => {
+          const next = new Set(prev)
+          next.add(card.id)
+          return next
+        })
+        setMovingCardIds(prev => {
+          const next = new Set(prev)
+          next.delete(card.id)
+          return next
+        })
+        if (sourceColumnIndex !== null) {
+          setMovingColumnIds(prev => {
+            const next = new Set(prev)
+            next.delete(sourceColumnIndex)
+            return next
+          })
+        }
+      })
       return
     }
 
     let targetFreeCellId: string | null = null
-    for (let i = state.freeCells.length - 1; i >= 0; i--) {
-      if (state.freeCells[i] === null) {
+    for (let i = currentState.freeCells.length - 1; i >= 0; i--) {
+      if (currentState.freeCells[i] === null) {
         targetFreeCellId = `free-${i}`
         break
       }
     }
 
+    if (location.type === 'free') return
+
     if (targetFreeCellId) {
       // Move to free cell without auto-move, then trigger auto-move after animation
+      setMovingCardIds(prev => new Set(prev).add(card.id))
+      if (sourceColumnIndex !== null) {
+        setMovingColumnIds(prev => {
+          const next = new Set(prev)
+          next.add(sourceColumnIndex)
+          return next
+        })
+      }
+      setSkipLayoutIds(prev => {
+        const next = new Set(prev)
+        next.add(card.id)
+        return next
+      })
+
+      const animation = animateCardMove(card, targetFreeCellId)
       moveCard(card.id, targetFreeCellId, true)
-      setTimeout(() => {
+
+      animation.finally(() => {
+        setSkipLayoutIds(prev => {
+          const next = new Set(prev)
+          next.add(card.id)
+          return next
+        })
+        setMovingCardIds(prev => {
+          const next = new Set(prev)
+          next.delete(card.id)
+          return next
+        })
+        if (sourceColumnIndex !== null) {
+          setMovingColumnIds(prev => {
+            const next = new Set(prev)
+            next.delete(sourceColumnIndex)
+            return next
+          })
+        }
         triggerAutoMove()
-      }, 250) // Slightly longer than the 200ms animation duration
+      })
     }
+  }
+
+  function handleCardClick(card: CardType) {
+    const now = Date.now()
+    const lastClick = lastClickRef.current
+    const isDouble = !!lastClick && lastClick.id === card.id && now - lastClick.time < 320
+
+    if (isDouble) {
+      lastClickRef.current = null
+      handleCardDoubleClick(card)
+      return
+    }
+
+    lastClickRef.current = { id: card.id, time: now }
   }
 
   return (
@@ -475,21 +601,23 @@ export function GameBoard() {
           <div className="flex gap-2">
             {state.freeCells.map((card, i) => {
               const isBeingDragged = card && draggedStack.some(c => c.id === card.id)
+              const isMovingCard = !!card && movingCardIds.has(card.id)
               return (
                 <DroppableZone key={`free-${i}`} id={`free-${i}`} className={cn(
                   "w-28 h-40 border-2 border-white/20 rounded-lg bg-white/5 flex items-center justify-center transition-opacity",
                   card && card.kind === 'dragon' && card.isLocked && "opacity-50"
                 )}>
-                  {card && (
+                  {card && !isMovingCard && (
                     <Card
                       card={card}
                       cardStyle={cardStyle}
                       className={cn(
                         isBeingDragged && "opacity-0",
-                        movingCardIds.has(card.id) && "opacity-0",
+                        movingCardIds.has(card.id) && "opacity-0 pointer-events-none",
                         state.status === 'paused' && "opacity-0"
                       )}
-                      onDoubleClick={() => handleCardDoubleClick(card)}
+                      disableLayout={movingCardIds.has(card.id) || skipLayoutIds.has(card.id)}
+                      onClick={() => handleCardClick(card)}
                       canMoveToFoundation={canMoveToFoundation(card)}
                     />
                   )}
@@ -553,14 +681,15 @@ export function GameBoard() {
                     "w-28 h-40 border-2 border-white/20 rounded-lg bg-white/5 flex items-center justify-center relative transition-opacity",
                     foundationCard && "opacity-50"
                   )}>
-                    {foundationCard ? (
+                    {foundationCard && !movingCardIds.has(foundationCard.id) ? (
                       <Card
                         card={foundationCard}
                         cardStyle={cardStyle}
+                      disableLayout={movingCardIds.has(foundationCard.id) || skipLayoutIds.has(foundationCard.id)}
                         disabled={true}
                       />
                     ) : (
-                      <div className="text-emerald-900/30 font-bold text-3xl opacity-70">
+                    <div className="text-emerald-900/30 font-bold text-3xl opacity-70">
                         {/* Empty placeholder */}
                       </div>
                     )}
@@ -594,29 +723,29 @@ export function GameBoard() {
               id={`col-${i}`}
               className="w-32 min-h-144 flex flex-col gap-[-8rem] p-1 border-2 border-white/10 rounded-lg bg-white/5 items-center pt-2"
             >
-              {column.map((card, index) => {
-                const isBeingDragged = draggedStack.some(c => c.id === card.id)
-                const isTopCard = index === column.length - 1
-                const canMove = isTopCard && canMoveToFoundation(card)
-                const isDraggable = canDragCard(card.id)
+                  {column.map((card, index) => {
+                    const isBeingDragged = draggedStack.some(c => c.id === card.id)
+                    const isTopCard = index === column.length - 1
+                    const canMove = isTopCard && canMoveToFoundation(card)
+                    const isDraggable = canDragCard(card.id)
 
-                return (
-                  <div key={card.id} style={{ marginTop: index === 0 ? 0 : '-8rem' }}>
-                    <Card
-                      card={card}
-                      cardStyle={cardStyle}
-                      className={cn(
-                        isBeingDragged ? "opacity-0" : "",
-                        movingCardIds.has(card.id) && "opacity-0",
-                        state.status === 'paused' ? "opacity-0" : ""
-                      )}
-                      disableLayout={skipLayoutIds.has(card.id)}
-                      onDoubleClick={() => handleCardDoubleClick(card)}
-                      canMoveToFoundation={canMove}
-                      disabled={!isDraggable}
-                    />
-                  </div>
-                )
+                    return (
+                      <div key={card.id} style={{ marginTop: index === 0 ? 0 : '-8rem' }}>
+                        <Card
+                          card={card}
+                          cardStyle={cardStyle}
+                          className={cn(
+                            isBeingDragged ? "opacity-0" : "",
+                            movingCardIds.has(card.id) && "opacity-0 pointer-events-none",
+                            state.status === 'paused' ? "opacity-0" : ""
+                          )}
+                      disableLayout={skipLayoutIds.has(card.id) || movingCardIds.has(card.id) || movingColumnIds.has(i)}
+                          onClick={() => handleCardClick(card)}
+                          canMoveToFoundation={canMove}
+                          disabled={!isDraggable}
+                        />
+                      </div>
+                    )
               })}
             </DroppableZone>
           ))}
