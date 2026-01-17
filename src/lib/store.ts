@@ -649,6 +649,42 @@ export function collectDragons(color: DragonColor) {
     if (!isPlayableState(state)) return state
     if (state.dragons[color] > 0) return state
 
+    if (state.devMode) {
+      const dragonFreeIndices = state.freeCells
+        .map((cell, index) => (cell?.kind === 'dragon' && cell.color === color ? index : -1))
+        .filter(index => index !== -1)
+      const targetFreeIndex = dragonFreeIndices[0] ?? state.freeCells.indexOf(null)
+      if (targetFreeIndex === -1) return state
+
+      const newColumns = state.columns.map(col =>
+        col.filter(card => !(card.kind === 'dragon' && card.color === color)),
+      )
+      const newFreeCells = state.freeCells.map(cell => {
+        if (cell?.kind === 'dragon' && cell.color === color) return null
+        return cell
+      })
+
+      newFreeCells[targetFreeIndex] = {
+        id: `dragon-${color}-locked`,
+        kind: 'dragon',
+        color,
+        isLocked: true,
+      }
+
+      const nextState = {
+        ...state,
+        columns: newColumns,
+        freeCells: newFreeCells,
+        dragons: {
+          ...state.dragons,
+          [color]: 1,
+        },
+        history: [...state.history, createHistoryEntry(state)],
+      }
+
+      return autoMoveOnes(nextState)
+    }
+
     const { locations, allFound } = getDragonLocations(state, color)
     if (!allFound && !state.devMode) return state
     if (locations.length !== DRAGON_IDS.length && !state.devMode) return state

@@ -308,6 +308,38 @@ describe('Shenzhen Solitaire Store', () => {
         expect(gameStore.state.freeCells[0]?.isLocked).toBe(true)
     })
 
+    it('dev mode collects dragons even when buried', () => {
+        const dragons: Array<Card> = [0, 1, 2, 3].map(i => ({ id: `dragon-green-${i}`, kind: 'dragon', color: 'green' }))
+        const cover1: Card = { id: 'cover-1', kind: 'normal', color: 'red', value: 9 }
+        const cover2: Card = { id: 'cover-2', kind: 'normal', color: 'black', value: 8 }
+        const cover3: Card = { id: 'cover-3', kind: 'normal', color: 'green', value: 7 }
+
+        gameStore.setState(s => ({
+            ...s,
+            devMode: true,
+            columns: [
+                [dragons[0], cover1],
+                [cover2, dragons[1]],
+                [dragons[2], cover3],
+                [dragons[3]],
+                [], [], [], []
+            ],
+            freeCells: [null, null, null],
+            dragons: { green: 0, red: 0, black: 0 }
+        }))
+
+        collectDragons('green')
+
+        const state = gameStore.state
+        expect(state.dragons.green).toBe(1)
+        expect(state.columns[0].some(card => card.kind === 'dragon')).toBe(false)
+        expect(state.columns[1].some(card => card.kind === 'dragon')).toBe(false)
+        expect(state.columns[2].some(card => card.kind === 'dragon')).toBe(false)
+        expect(state.columns[3].some(card => card.kind === 'dragon')).toBe(false)
+        expect(state.columns[0].at(-1)?.id).toBe('cover-1')
+        expect(state.columns[2].at(-1)?.id).toBe('cover-3')
+    })
+
     it('initial auto-moves do not create undo history', () => {
         gameStore.setState({
             columns: [[{ id: 'normal-green-1', kind: 'normal', color: 'green', value: 1 }]],

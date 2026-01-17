@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '@tanstack/react-store'
-import { gameStore, newGame, newGameNoAutoMoveFirstMove, pauseGame, restartGame, resumeGame, setNoAutoMoveFirstMove, setTimerVisibility, setUndoEnabled, syncNoAutoMoveFirstMove, syncTimerVisibility, syncUndoEnabled, toggleDevMode, undo, updateTimer } from '@/lib/store'
+import { gameStore, newGame, newGameNoAutoMoveFirstMove, pauseGame, restartGame, resumeGame, setNoAutoMoveFirstMove, setTimerVisibility, setUndoEnabled, syncNoAutoMoveFirstMove, syncTimerVisibility, syncUndoEnabled, toggleDevMode as toggleAllTableauMovesValid, undo, updateTimer } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -391,7 +391,7 @@ export function ControlPanel({ onUndo, isInputLocked = false }: ControlPanelProp
             </DialogHeader>
             <div className="text-sm space-y-2">
               <p><a href="http://store.steampowered.com/app/504210/" target="_blank" rel="noopener noreferrer" className="underline text-slate-800 hover:text-slate-600">SHENZHEN SOLITAIRE</a> originally created by Zachtronics.</p>
-              <p>Adapted by <a href="https://linktr.ee/gaeljacquin" target="_blank" rel="noopener noreferrer" className="underline text-slate-800 hover:text-slate-600">Gaël Jacquin</a>. GitHub repo <a href="https://github.com/gaeljacquin/shenzhen-solitaire" target="_blank" rel="noopener noreferrer" className="underline text-slate-800 hover:text-slate-600">here</a>.</p>
+              <p>Adapted by <a href="https://gaeljacquin.com" target="_blank" rel="noopener noreferrer" className="underline text-slate-800 hover:text-slate-600">Gaël Jacquin</a>. GitHub repo <a href="https://github.com/gaeljacquin/shenzhen-solitaire" target="_blank" rel="noopener noreferrer" className="underline text-slate-800 hover:text-slate-600">here</a>.</p>
               <p>This is not affiliated with Zachtronics or SHENZHEN I/O.</p>
             </div>
           </DialogContent>
@@ -412,7 +412,7 @@ export function ControlPanel({ onUndo, isInputLocked = false }: ControlPanelProp
                   "cursor-pointer",
                 )
               }
-              onClick={toggleDevMode}
+              onClick={toggleAllTableauMovesValid}
               disabled={isInputLocked}
             >
               All tableau moves are valid
