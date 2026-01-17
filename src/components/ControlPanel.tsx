@@ -5,7 +5,11 @@ import { cn } from '@/lib/utils'
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 
-export function ControlPanel() {
+type ControlPanelProps = {
+  onUndo?: () => void
+}
+
+export function ControlPanel({ onUndo }: ControlPanelProps = {}) {
   const status = useStore(gameStore, (state) => state.status)
   const history = useStore(gameStore, (state) => state.history)
   const devMode = useStore(gameStore, (state) => state.devMode)
@@ -137,7 +141,7 @@ export function ControlPanel() {
         <Button
           variant="outline"
           className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer"
-          onClick={undo}
+          onClick={onUndo ?? undo}
           disabled={history.length === 0 || status !== 'playing' || !isUndoEnabled}
         >
           Undo

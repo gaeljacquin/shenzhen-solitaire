@@ -405,39 +405,41 @@ export function collectDragons(color: DragonColor) {
 }
 
 export function undo() {
-    gameStore.setState((state) => {
-        if (!state.isUndoEnabled) return state
-        if (state.history.length === 0) return state
+    gameStore.setState((state) => computeUndoState(state) ?? state)
+}
 
-        const history = [...state.history]
-        let previous = history.pop()!
-        let newState = {
-            ...state,
+export function computeUndoState(state: GameState): GameState | null {
+    if (!state.isUndoEnabled) return null
+    if (state.history.length === 0) return null
+
+    const history = [...state.history]
+    let previous = history.pop()!
+    let newState = {
+        ...state,
+        ...previous,
+        history: history,
+        status: 'playing' as GameStatus,
+        timerRunning: true,
+        isTimerVisible: state.isTimerVisible,
+        isUndoEnabled: state.isUndoEnabled
+    }
+
+    if (newState.status === 'playing') {
+        newState.timerRunning = true
+    }
+
+    while (previous.isAuto && history.length > 0) {
+        previous = history.pop()!
+        newState = {
+            ...newState,
             ...previous,
             history: history,
-            status: 'playing' as GameStatus,
-            timerRunning: true,
             isTimerVisible: state.isTimerVisible,
             isUndoEnabled: state.isUndoEnabled
         }
+    }
 
-        if (newState.status === 'playing') {
-            newState.timerRunning = true
-        }
-
-        while (previous.isAuto && history.length > 0) {
-            previous = history.pop()!
-            newState = {
-                ...newState,
-                ...previous,
-                history: history,
-                isTimerVisible: state.isTimerVisible,
-                isUndoEnabled: state.isUndoEnabled
-            }
-        }
-
-        return newState
-    })
+    return newState
 }
 
 export function newGame() {

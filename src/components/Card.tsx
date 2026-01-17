@@ -160,6 +160,8 @@ export function Card({
     )
   }
 
+  const instantHide = className?.includes('instant-hide')
+
   return (
     <motion.div
       layoutId={disableLayout || className?.includes('opacity-0') ? undefined : card.id}
@@ -183,7 +185,7 @@ export function Card({
       }}
       transition={{
         layout: { duration: 0.45, type: "spring", bounce: 0.15 },
-        opacity: { duration: 0.2 }
+        opacity: { duration: instantHide ? 0 : 0.2 }
       }}
     >
       {renderContent()}

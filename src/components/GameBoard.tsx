@@ -3,10 +3,11 @@ import { Flower, Wand2 } from 'lucide-react'
 import { DndContext,  DragOverlay,  PointerSensor, useDroppable, useSensor, useSensors } from '@dnd-kit/core'
 import { LayoutGroup, motion } from 'motion/react'
 import {  useEffect, useMemo, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import type {DragEndEvent, DragStartEvent} from '@dnd-kit/core';
 import type { CardColor, Card as CardType, DragonColor } from '@/lib/types'
 import type { ReactNode } from 'react';
-import { collectDragons, gameStore, moveCard, newGame, triggerAutoMove } from '@/lib/store'
+import { collectDragons, computeUndoState, gameStore, moveCard, newGame, triggerAutoMove, undo } from '@/lib/store'
 import { Card } from '@/components/Card'
 import { ControlPanel } from '@/components/ControlPanel'
 import { cn } from '@/lib/utils'
@@ -40,6 +41,7 @@ export function GameBoard() {
   const [movingColumnIds, setMovingColumnIds] = useState<Set<number>>(() => new Set())
   const [floatingCards, setFloatingCards] = useState<Array<FloatingCardMove>>([])
   const [isAutoMoving, setIsAutoMoving] = useState(false)
+  const [isUndoing, setIsUndoing] = useState(false)
   const [skipLayoutIds, setSkipLayoutIds] = useState<Set<string>>(() => new Set())
   const lastClickRef = useRef<{ id: string; time: number } | null>(null)
 
@@ -112,8 +114,80 @@ export function GameBoard() {
   }, [state.foundations, state.columns, state.freeCells])
 
   const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+  const shouldHideCard = (cardId: string) => movingCardIds.has(cardId)
 
-  const animateCardMove = async (card: CardType, targetZoneId: string) => {
+  const getCardPositionMap = (currentState: typeof gameStore.state) => {
+    const positions = new Map<string, string>()
+
+    currentState.freeCells.forEach((card, index) => {
+      if (card) {
+        positions.set(card.id, `free-${index}`)
+      }
+    })
+
+    currentState.columns.forEach((column, colIndex) => {
+      column.forEach((card) => {
+        positions.set(card.id, `col-${colIndex}`)
+      })
+    })
+
+    const foundationColors: Array<CardColor> = ['green', 'red', 'black']
+    foundationColors.forEach((color) => {
+      const value = currentState.foundations[color]
+      if (value > 0) {
+        positions.set(`normal-${color}-${value}`, `foundation-${color}`)
+      }
+    })
+
+    if (currentState.foundations.flower) {
+      positions.set('flower', 'foundation-flower')
+    }
+
+    return positions
+  }
+
+  const parseCardId = (cardId: string): CardType | null => {
+    if (cardId === 'flower') {
+      return { id: 'flower', kind: 'flower' }
+    }
+
+    if (cardId.startsWith('normal-')) {
+      const [, color, value] = cardId.split('-')
+      if (!color || !value) return null
+      return { id: cardId, kind: 'normal', color: color as CardColor, value: Number(value) }
+    }
+
+    if (cardId.startsWith('dragon-')) {
+      const [, color, marker] = cardId.split('-')
+      if (!color) return null
+      return {
+        id: cardId,
+        kind: 'dragon',
+        color: color as DragonColor,
+        isLocked: marker === 'locked',
+      }
+    }
+
+    return null
+  }
+
+  const getCardFromState = (currentState: typeof gameStore.state, cardId: string) => {
+    for (const column of currentState.columns) {
+      const card = column.find(item => item.id === cardId)
+      if (card) return card
+    }
+
+    const freeCard = currentState.freeCells.find(card => card?.id === cardId)
+    if (freeCard) return freeCard
+
+    return parseCardId(cardId)
+  }
+
+  const animateCardMove = async (
+    card: CardType,
+    targetZoneId: string,
+    onStart?: () => void,
+  ) => {
     const sourceEl = document.querySelector(`[data-card-id="${card.id}"]`)
     const targetEl = document.querySelector(`[data-zone-id="${targetZoneId}"]`)
 
@@ -132,16 +206,18 @@ export function GameBoard() {
         resolve()
       }
 
-      setFloatingCards(prev => [
-        ...prev,
-        {
-          id: animationId,
-          card,
-          from,
-          to,
-          onComplete,
-        },
-      ])
+      const nextMove: FloatingCardMove = {
+        id: animationId,
+        card,
+        from,
+        to,
+        onComplete,
+      }
+
+      flushSync(() => {
+        onStart?.()
+        setFloatingCards(prev => [...prev, nextMove])
+      })
     })
   }
 
@@ -418,6 +494,84 @@ export function GameBoard() {
     return null
   }
 
+  const getCardLocationForState = (currentState: typeof state, cardId: string) => {
+    const freeIndex = currentState.freeCells.findIndex(c => c?.id === cardId)
+    if (freeIndex !== -1) {
+      return { type: 'free' as const, index: freeIndex }
+    }
+
+    for (let i = 0; i < currentState.columns.length; i++) {
+      const column = currentState.columns[i]
+      const cardIndex = column.findIndex(c => c.id === cardId)
+      if (cardIndex !== -1) {
+        return { type: 'col' as const, index: i, cardIndex }
+      }
+    }
+
+    if (cardId === 'flower' && currentState.foundations.flower) {
+      return { type: 'foundation' as const, id: 'foundation-flower' }
+    }
+
+    if (cardId.startsWith('normal-')) {
+      const [, color, value] = cardId.split('-')
+      if (color && value) {
+        const targetValue = currentState.foundations[color as CardColor]
+        if (targetValue === Number(value)) {
+          return { type: 'foundation' as const, id: `foundation-${color}` }
+        }
+      }
+    }
+
+    return null
+  }
+
+  const getStackOffset = () => {
+    const columnEls = Array.from(document.querySelectorAll('[data-zone-id^="col-"]'))
+    for (const colEl of columnEls) {
+      const cards = Array.from(colEl.querySelectorAll('[data-card-id]'))
+      if (cards.length >= 2) {
+        const first = cards[0].getBoundingClientRect()
+        const second = cards[1].getBoundingClientRect()
+        const offset = second.top - first.top
+        if (offset > 0) return offset
+      }
+    }
+    return 32
+  }
+
+  const getTargetRectForState = (
+    currentState: typeof state,
+    cardId: string,
+    cardRect: DOMRect,
+    stackOffset: number,
+  ) => {
+    const location = getCardLocationForState(currentState, cardId)
+    if (!location) return null
+
+    if (location.type === 'free') {
+      const zone = document.querySelector(`[data-zone-id="free-${location.index}"]`)
+      if (!zone) return null
+      const zoneRect = zone.getBoundingClientRect()
+      return new DOMRect(zoneRect.left, zoneRect.top, zoneRect.width, zoneRect.height)
+    }
+
+    if (location.type === 'foundation') {
+      const zone = document.querySelector(`[data-zone-id="${location.id}"]`)
+      if (!zone) return null
+      const zoneRect = zone.getBoundingClientRect()
+      return new DOMRect(zoneRect.left, zoneRect.top, zoneRect.width, zoneRect.height)
+    }
+
+    const columnEl = document.querySelector(`[data-zone-id="col-${location.index}"]`)
+    if (!columnEl) return null
+    const columnRect = columnEl.getBoundingClientRect()
+    const columnStyle = window.getComputedStyle(columnEl)
+    const paddingTop = Number.parseFloat(columnStyle.paddingTop || '0') || 0
+    const left = columnRect.left + (columnRect.width - cardRect.width) / 2
+    const top = columnRect.top + paddingTop + location.cardIndex * stackOffset
+    return new DOMRect(left, top, cardRect.width, cardRect.height)
+  }
+
   function handleCardDoubleClick(card: CardType) {
     if (movingCardIds.has(card.id)) return
 
@@ -441,41 +595,43 @@ export function GameBoard() {
     }
 
     if (targetFoundationId) {
-      setMovingCardIds(prev => new Set(prev).add(card.id))
-      if (sourceColumnIndex !== null) {
-        setMovingColumnIds(prev => {
-          const next = new Set(prev)
-          next.add(sourceColumnIndex)
-          return next
-        })
-      }
-      setSkipLayoutIds(prev => {
-        const next = new Set(prev)
-        next.add(card.id)
-        return next
-      })
-
-      const animation = animateCardMove(card, targetFoundationId)
-      moveCard(card.id, targetFoundationId)
-
-      animation.finally(() => {
+      const animation = animateCardMove(card, targetFoundationId, () => {
+        setMovingCardIds(prev => new Set(prev).add(card.id))
+        if (sourceColumnIndex !== null) {
+          setMovingColumnIds(prev => {
+            const next = new Set(prev)
+            next.add(sourceColumnIndex)
+            return next
+          })
+        }
         setSkipLayoutIds(prev => {
           const next = new Set(prev)
           next.add(card.id)
           return next
         })
-        setMovingCardIds(prev => {
-          const next = new Set(prev)
-          next.delete(card.id)
-          return next
-        })
-        if (sourceColumnIndex !== null) {
-          setMovingColumnIds(prev => {
+      })
+
+      animation.finally(() => {
+        flushSync(() => {
+          moveCard(card.id, targetFoundationId)
+          setSkipLayoutIds(prev => {
             const next = new Set(prev)
-            next.delete(sourceColumnIndex)
+            next.add(card.id)
             return next
           })
-        }
+          setMovingCardIds(prev => {
+            const next = new Set(prev)
+            next.delete(card.id)
+            return next
+          })
+          if (sourceColumnIndex !== null) {
+            setMovingColumnIds(prev => {
+              const next = new Set(prev)
+              next.delete(sourceColumnIndex)
+              return next
+            })
+          }
+        })
       })
       return
     }
@@ -492,41 +648,43 @@ export function GameBoard() {
 
     if (targetFreeCellId) {
       // Move to free cell without auto-move, then trigger auto-move after animation
-      setMovingCardIds(prev => new Set(prev).add(card.id))
-      if (sourceColumnIndex !== null) {
-        setMovingColumnIds(prev => {
-          const next = new Set(prev)
-          next.add(sourceColumnIndex)
-          return next
-        })
-      }
-      setSkipLayoutIds(prev => {
-        const next = new Set(prev)
-        next.add(card.id)
-        return next
-      })
-
-      const animation = animateCardMove(card, targetFreeCellId)
-      moveCard(card.id, targetFreeCellId, true)
-
-      animation.finally(() => {
+      const animation = animateCardMove(card, targetFreeCellId, () => {
+        setMovingCardIds(prev => new Set(prev).add(card.id))
+        if (sourceColumnIndex !== null) {
+          setMovingColumnIds(prev => {
+            const next = new Set(prev)
+            next.add(sourceColumnIndex)
+            return next
+          })
+        }
         setSkipLayoutIds(prev => {
           const next = new Set(prev)
           next.add(card.id)
           return next
         })
-        setMovingCardIds(prev => {
-          const next = new Set(prev)
-          next.delete(card.id)
-          return next
-        })
-        if (sourceColumnIndex !== null) {
-          setMovingColumnIds(prev => {
+      })
+
+      animation.finally(() => {
+        flushSync(() => {
+          moveCard(card.id, targetFreeCellId, true)
+          setSkipLayoutIds(prev => {
             const next = new Set(prev)
-            next.delete(sourceColumnIndex)
+            next.add(card.id)
             return next
           })
-        }
+          setMovingCardIds(prev => {
+            const next = new Set(prev)
+            next.delete(card.id)
+            return next
+          })
+          if (sourceColumnIndex !== null) {
+            setMovingColumnIds(prev => {
+              const next = new Set(prev)
+              next.delete(sourceColumnIndex)
+              return next
+            })
+          }
+        })
         triggerAutoMove()
       })
     }
@@ -544,6 +702,99 @@ export function GameBoard() {
     }
 
     lastClickRef.current = { id: card.id, time: now }
+  }
+
+  const handleUndo = () => {
+    if (isUndoing || isAutoMoving) return
+
+    const currentState = gameStore.state
+    const targetState = computeUndoState(currentState)
+    if (!targetState) return
+
+    const currentPositions = getCardPositionMap(currentState)
+    const targetPositions = getCardPositionMap(targetState)
+    const movingIds: string[] = []
+    const fromRects = new Map<string, DOMRect>()
+    const toRects = new Map<string, DOMRect>()
+    const stackOffset = getStackOffset()
+
+    targetPositions.forEach((targetPosition, cardId) => {
+      const currentPosition = currentPositions.get(cardId)
+      if (!currentPosition || currentPosition === targetPosition) return
+
+      const sourceEl = document.querySelector(`[data-card-id="${cardId}"]`)
+      if (!sourceEl) return
+
+      const fromRect = sourceEl.getBoundingClientRect()
+      const toRect = getTargetRectForState(targetState, cardId, fromRect, stackOffset)
+      if (!toRect) return
+
+      fromRects.set(cardId, fromRect)
+      toRects.set(cardId, toRect)
+      movingIds.push(cardId)
+    })
+
+    if (movingIds.length === 0) {
+      undo()
+      return
+    }
+
+    const pendingMoves: FloatingCardMove[] = []
+    let remaining = 0
+
+    movingIds.forEach((cardId) => {
+      const from = fromRects.get(cardId)
+      const to = toRects.get(cardId)
+      if (!from || !to) return
+
+      if (Math.abs(from.left - to.left) < 1 && Math.abs(from.top - to.top) < 1) return
+
+      const card = getCardFromState(targetState, cardId)
+      if (!card) return
+
+      remaining += 1
+      const animationId = `${card.id}-${Date.now()}-${Math.random().toString(16).slice(2)}`
+      const onComplete = () => {
+        setFloatingCards(prev => prev.filter(item => item.id !== animationId))
+        remaining -= 1
+
+        if (remaining === 0) {
+          flushSync(() => {
+            undo()
+            setMovingCardIds(prev => {
+              const next = new Set(prev)
+              movingIds.forEach(id => next.delete(id))
+              return next
+            })
+            setIsUndoing(false)
+          })
+        }
+      }
+
+      pendingMoves.push({
+        id: animationId,
+        card,
+        from,
+        to,
+        onComplete,
+      })
+    })
+
+    if (pendingMoves.length === 0) {
+      undo()
+      return
+    }
+
+    flushSync(() => {
+      setIsUndoing(true)
+      setSkipLayoutIds(new Set(movingIds))
+      setMovingCardIds(prev => {
+        const next = new Set(prev)
+        movingIds.forEach(id => next.add(id))
+        return next
+      })
+      setFloatingCards(prev => [...prev, ...pendingMoves])
+    })
   }
 
   return (
@@ -597,34 +848,34 @@ export function GameBoard() {
           )}
 
           <div className="w-full flex justify-between items-start mb-8 gap-8">
-
-          <div className="flex gap-2">
-            {state.freeCells.map((card, i) => {
-              const isBeingDragged = card && draggedStack.some(c => c.id === card.id)
-              const isMovingCard = !!card && movingCardIds.has(card.id)
-              return (
-                <DroppableZone key={`free-${i}`} id={`free-${i}`} className={cn(
-                  "w-28 h-40 border-2 border-white/20 rounded-lg bg-white/5 flex items-center justify-center transition-opacity",
-                  card && card.kind === 'dragon' && card.isLocked && "opacity-50"
-                )}>
-                  {card && !isMovingCard && (
-                    <Card
-                      card={card}
-                      cardStyle={cardStyle}
-                      className={cn(
-                        isBeingDragged && "opacity-0",
-                        movingCardIds.has(card.id) && "opacity-0 pointer-events-none",
-                        state.status === 'paused' && "opacity-0"
-                      )}
-                      disableLayout={movingCardIds.has(card.id) || skipLayoutIds.has(card.id)}
-                      onClick={() => handleCardClick(card)}
-                      canMoveToFoundation={canMoveToFoundation(card)}
-                    />
-                  )}
-                </DroppableZone>
-              )
-            })}
-          </div>
+            <div className="flex gap-2">
+              {state.freeCells.map((card, i) => {
+                const isBeingDragged = card && draggedStack.some(c => c.id === card.id)
+                const isMovingCard = !!card && movingCardIds.has(card.id)
+                return (
+                  <DroppableZone key={`free-${i}`} id={`free-${i}`} className={cn(
+                    "w-28 h-40 border-2 border-white/20 rounded-lg bg-white/5 flex items-center justify-center transition-opacity",
+                    card && card.kind === 'dragon' && card.isLocked && "opacity-50"
+                  )}>
+                    {card && (
+                      <Card
+                        card={card}
+                        cardStyle={cardStyle}
+                        className={cn(
+                          isBeingDragged && "opacity-0",
+                          card && shouldHideCard(card.id) && "opacity-0 instant-hide",
+                          isMovingCard && "pointer-events-none",
+                          state.status === 'paused' && "opacity-0"
+                        )}
+                        disableLayout={movingCardIds.has(card.id) || skipLayoutIds.has(card.id)}
+                        onClick={() => handleCardClick(card)}
+                        canMoveToFoundation={canMoveToFoundation(card)}
+                      />
+                    )}
+                  </DroppableZone>
+                )
+              })}
+            </div>
 
           <div className="flex flex-col gap-4 items-center">
             <DroppableZone
@@ -641,6 +892,11 @@ export function GameBoard() {
                 <Card
                   card={{ id: 'flower', kind: 'flower' }}
                   cardStyle={cardStyle}
+                  className={cn(
+                    shouldHideCard('flower') && "opacity-0 instant-hide",
+                    movingCardIds.has('flower') && "pointer-events-none"
+                  )}
+                  disableLayout={movingCardIds.has('flower') || skipLayoutIds.has('flower')}
                   disabled={true}
                 />
               )}
@@ -681,15 +937,19 @@ export function GameBoard() {
                     "w-28 h-40 border-2 border-white/20 rounded-lg bg-white/5 flex items-center justify-center relative transition-opacity",
                     foundationCard && "opacity-50"
                   )}>
-                    {foundationCard && !movingCardIds.has(foundationCard.id) ? (
+                    {foundationCard ? (
                       <Card
                         card={foundationCard}
                         cardStyle={cardStyle}
-                      disableLayout={movingCardIds.has(foundationCard.id) || skipLayoutIds.has(foundationCard.id)}
+                        className={cn(
+                          shouldHideCard(foundationCard.id) && "opacity-0 instant-hide",
+                          movingCardIds.has(foundationCard.id) && "pointer-events-none"
+                        )}
+                        disableLayout={movingCardIds.has(foundationCard.id) || skipLayoutIds.has(foundationCard.id)}
                         disabled={true}
                       />
                     ) : (
-                    <div className="text-emerald-900/30 font-bold text-3xl opacity-70">
+                      <div className="text-emerald-900/30 font-bold text-3xl opacity-70">
                         {/* Empty placeholder */}
                       </div>
                     )}
@@ -736,7 +996,8 @@ export function GameBoard() {
                           cardStyle={cardStyle}
                           className={cn(
                             isBeingDragged ? "opacity-0" : "",
-                            movingCardIds.has(card.id) && "opacity-0 pointer-events-none",
+                            shouldHideCard(card.id) && "opacity-0 instant-hide",
+                            movingCardIds.has(card.id) && "pointer-events-none",
                             state.status === 'paused' ? "opacity-0" : ""
                           )}
                       disableLayout={skipLayoutIds.has(card.id) || movingCardIds.has(card.id) || movingColumnIds.has(i)}
@@ -751,7 +1012,7 @@ export function GameBoard() {
           ))}
         </div>
 
-          <ControlPanel />
+          <ControlPanel onUndo={handleUndo} />
         </div>
       </LayoutGroup>
     </DndContext>
