@@ -78,11 +78,11 @@ function renderNormalCard(value: number, color: string, cardStyle: CardStyle, is
         colorClass,
       )}
     >
-      <div className="text-sm font-bold leading-none self-start">{value}</div>
+      <div className="text-xs sm:text-sm font-bold leading-none self-start">{value}</div>
       <div className="flex-1 flex items-center justify-center">
-        <span className="text-4xl font-bold">{value}</span>
+        <span className="text-3xl sm:text-4xl font-bold">{value}</span>
       </div>
-      <div className="text-sm font-bold leading-none rotate-180 self-end">{value}</div>
+      <div className="text-xs sm:text-sm font-bold leading-none rotate-180 self-end">{value}</div>
     </div>
   )
 }
@@ -109,7 +109,7 @@ function renderDragonCard(
       <div className="flex-1 flex items-center justify-center">
         {icon &&
           React.cloneElement(icon as React.ReactElement<{ className?: string }>, {
-            className: 'size-10 fill-current',
+            className: 'size-8 sm:size-10 fill-current',
           })}
       </div>
       <div className="leading-none rotate-180">{icon}</div>
@@ -133,13 +133,13 @@ function renderFlowerCard(cardStyle: CardStyle, isDragging: boolean) {
       )}
     >
       <div className="leading-none">
-        <Flower className="size-4" />
+        <Flower className="size-3 sm:size-4" />
       </div>
       <div className="flex-1 flex items-center justify-center">
-        <Flower className="size-10" />
+        <Flower className="size-8 sm:size-10" />
       </div>
       <div className="leading-none rotate-180">
-        <Flower className="size-4" />
+        <Flower className="size-3 sm:size-4" />
       </div>
     </div>
   )
@@ -201,7 +201,7 @@ export function Card({
         data-card-id={dataIdDisabled ? undefined : card.id}
         disabled={isButtonDisabled}
         className={cn(
-          'w-28 h-40 rounded-lg shadow-sm select-none relative overflow-hidden p-1 touch-none transition-none',
+          'w-(--card-width) h-(--card-height) rounded-lg shadow-sm select-none relative overflow-hidden p-1 touch-none transition-none',
           !className?.includes('opacity-0') && 'opacity-50 z-50',
           isCardDisabled && 'cursor-default',
           className,
@@ -229,7 +229,7 @@ export function Card({
       data-card-id={dataIdDisabled ? undefined : card.id}
       disabled={isButtonDisabled}
       className={cn(
-        'w-28 h-40 rounded-lg shadow-sm select-none relative overflow-hidden p-1 touch-none transition-none',
+        'w-(--card-width) h-(--card-height) rounded-lg shadow-sm select-none relative overflow-hidden p-1 touch-none transition-none',
         isCardDisabled && 'cursor-default',
         canMoveToFoundation && 'border-white animate-border-pulse',
         className,

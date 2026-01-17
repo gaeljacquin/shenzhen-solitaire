@@ -146,21 +146,21 @@ export function ControlPanel({ onUndo, isInputLocked = false }: ControlPanelProp
   }
 
   return (
-    <div className="flex flex-col items-center w-full max-w-7xl px-4 gap-2 mt-4">
+    <div className="flex flex-col items-center w-full max-w-7xl px-2 sm:px-4 gap-2 mt-3 sm:mt-4">
 
       <div className="flex justify-center transition-opacity duration-300">
         <div className={cn(
-          "text-3xl font-mono font-bold text-white tracking-wider drop-shadow-md flex gap-2 h-9",
+          "text-2xl sm:text-3xl font-mono font-bold text-white tracking-wider drop-shadow-md flex gap-2 h-8 sm:h-9",
           timerOpacityClass,
         )}>
           {timerLabel}
         </div>
       </div>
 
-      <div className="flex gap-4 justify-center flex-wrap items-center">
+      <div className="flex gap-2 sm:gap-4 justify-center flex-wrap items-center">
         <Button
           variant="outline"
-          className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer"
+          className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer text-sm sm:text-base px-3 sm:px-4 py-2"
           onClick={onUndo ?? undo}
           disabled={isInputLocked || history.length === 0 || status !== 'playing' || !isUndoEnabled}
         >
@@ -170,7 +170,7 @@ export function ControlPanel({ onUndo, isInputLocked = false }: ControlPanelProp
         <Button
           variant="outline"
           className={cn(
-            "border-slate-300 transition-colors cursor-pointer",
+            "border-slate-300 transition-colors cursor-pointer text-sm sm:text-base px-3 sm:px-4 py-2",
             status === 'paused'
               ? "bg-amber-500 text-white hover:bg-amber-600 border-amber-600"
               : "bg-slate-100 text-slate-900 hover:bg-slate-200"
@@ -185,13 +185,13 @@ export function ControlPanel({ onUndo, isInputLocked = false }: ControlPanelProp
           <DialogTrigger asChild>
             <Button
               variant="outline"
-              className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer"
+              className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer text-sm sm:text-base px-3 sm:px-4 py-2"
               disabled={isInputLocked || status === 'won' || !hasManualMoves}
             >
               Restart
             </Button>
           </DialogTrigger>
-          <DialogContent className="bg-[#FDF6E3] text-slate-900 border-slate-400">
+          <DialogContent className="bg-[#FDF6E3] text-slate-900 border-slate-400 w-[92vw] max-w-md sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Restart</DialogTitle>
               <DialogDescription className="text-slate-700">
@@ -212,7 +212,7 @@ export function ControlPanel({ onUndo, isInputLocked = false }: ControlPanelProp
         {status === 'won' ? (
           <Button
             variant="outline"
-            className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer"
+            className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer text-sm sm:text-base px-3 sm:px-4 py-2"
             onClick={() => newGame()}
             disabled={isInputLocked}
           >
@@ -221,11 +221,11 @@ export function ControlPanel({ onUndo, isInputLocked = false }: ControlPanelProp
         ) : (
           <Dialog>
             <DialogTrigger asChild>
-              <Button variant="outline" className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer" disabled={isInputLocked}>
+              <Button variant="outline" className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer text-sm sm:text-base px-3 sm:px-4 py-2" disabled={isInputLocked}>
                 New Game
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-[#FDF6E3] text-slate-900 border-slate-400">
+            <DialogContent className="bg-[#FDF6E3] text-slate-900 border-slate-400 w-[92vw] max-w-md sm:max-w-lg">
               <DialogHeader>
                 <DialogTitle>New Game</DialogTitle>
                 <DialogDescription className="text-slate-700">
@@ -234,23 +234,23 @@ export function ControlPanel({ onUndo, isInputLocked = false }: ControlPanelProp
               </DialogHeader>
               <DialogFooter>
                 <DialogClose asChild>
-                <Button variant="outline" className="border-slate-400 text-slate-900 cursor-pointer">Cancel</Button>
-              </DialogClose>
-              <DialogClose asChild>
-                <Button onClick={() => newGame()} className="bg-slate-800 hover:bg-slate-900 text-white cursor-pointer" disabled={isInputLocked}>New Game</Button>
-              </DialogClose>
+                  <Button variant="outline" className="border-slate-400 text-slate-900 cursor-pointer">Cancel</Button>
+                </DialogClose>
+                <DialogClose asChild>
+                  <Button onClick={() => newGame()} className="bg-slate-800 hover:bg-slate-900 text-white cursor-pointer" disabled={isInputLocked}>New Game</Button>
+                </DialogClose>
             </DialogFooter>
           </DialogContent>
         </Dialog>
         )}
 
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button variant="outline" className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer" disabled={isInputLocked}>
+          <Dialog>
+            <DialogTrigger asChild>
+            <Button variant="outline" className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer text-sm sm:text-base px-3 sm:px-4 py-2" disabled={isInputLocked}>
               Instructions
             </Button>
           </DialogTrigger>
-          <DialogContent className="bg-[#FDF6E3] text-slate-900 border-slate-400 max-w-2xl">
+          <DialogContent className="bg-[#FDF6E3] text-slate-900 border-slate-400 w-[92vw] max-w-2xl">
             <DialogHeader>
               <DialogTitle>How to Play Shenzhen Solitaire</DialogTitle>
               <DialogDescription className="text-slate-700 hidden">
@@ -268,12 +268,12 @@ export function ControlPanel({ onUndo, isInputLocked = false }: ControlPanelProp
 
         <Dialog open={optionsOpen} onOpenChange={handleOptionsOpenChange}>
           <DialogTrigger asChild>
-            <Button variant="outline" className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer" disabled={isInputLocked}>
+            <Button variant="outline" className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer text-sm sm:text-base px-3 sm:px-4 py-2" disabled={isInputLocked}>
               Options
             </Button>
           </DialogTrigger>
           <DialogContent
-            className="bg-[#FDF6E3] text-slate-900 border-slate-400 max-w-2xl p-8 flex flex-col gap-12"
+            className="bg-[#FDF6E3] text-slate-900 border-slate-400 w-[92vw] max-w-2xl p-6 sm:p-8 flex flex-col gap-8 sm:gap-12"
             showCloseButton={false}
             onInteractOutside={(event) => event.preventDefault()}
           >
@@ -286,13 +286,13 @@ export function ControlPanel({ onUndo, isInputLocked = false }: ControlPanelProp
             <div className="space-y-4">
               <label
                 htmlFor="timer-visibility"
-                className="flex w-full cursor-pointer items-center justify-between gap-6 rounded-lg border border-slate-300 bg-white/80 p-4 text-lg font-semibold"
+                className="flex w-full cursor-pointer items-center justify-between gap-4 sm:gap-6 rounded-lg border border-slate-300 bg-white/80 p-4 text-base sm:text-lg font-semibold"
               >
                 {renderOptionLabel('Timer', 'timer', timerChanged)}
                 <input
                   id="timer-visibility"
                   type="checkbox"
-                  className="h-7 w-7 accent-slate-900"
+                  className="h-6 w-6 sm:h-7 sm:w-7 accent-slate-900"
                   checked={draftTimerVisible}
                   disabled={isInputLocked}
                   onChange={(event) => setDraftTimerVisible(event.target.checked)}
@@ -300,13 +300,13 @@ export function ControlPanel({ onUndo, isInputLocked = false }: ControlPanelProp
               </label>
               <label
                 htmlFor="undo-enabled"
-                className="flex w-full cursor-pointer items-center justify-between gap-6 rounded-lg border border-slate-300 bg-white/80 p-4 text-lg font-semibold"
+                className="flex w-full cursor-pointer items-center justify-between gap-4 sm:gap-6 rounded-lg border border-slate-300 bg-white/80 p-4 text-base sm:text-lg font-semibold"
               >
                 {renderOptionLabel('Undo moves', 'undo-moves', undoChanged)}
                 <input
                   id="undo-enabled"
                   type="checkbox"
-                  className="h-7 w-7 accent-slate-900"
+                  className="h-6 w-6 sm:h-7 sm:w-7 accent-slate-900"
                   checked={draftUndoEnabled}
                   disabled={isInputLocked}
                   onChange={(event) => setDraftUndoEnabled(event.target.checked)}
@@ -314,13 +314,13 @@ export function ControlPanel({ onUndo, isInputLocked = false }: ControlPanelProp
               </label>
               <label
                 htmlFor="no-auto-move-first-move"
-                className="flex w-full cursor-pointer items-center justify-between gap-6 rounded-lg border border-slate-300 bg-white/80 p-4 text-lg font-semibold"
+                className="flex w-full cursor-pointer items-center justify-between gap-4 sm:gap-6 rounded-lg border border-slate-300 bg-white/80 p-4 text-base sm:text-lg font-semibold"
               >
                 {renderOptionLabel('No 1s or Flower Card on deal', 'no-auto-move-first-move', noAutoMoveChanged)}
                 <input
                   id="no-auto-move-first-move"
                   type="checkbox"
-                  className="h-7 w-7 accent-slate-900"
+                  className="h-6 w-6 sm:h-7 sm:w-7 accent-slate-900"
                   checked={draftNoAutoMoveFirstMove}
                   disabled={isInputLocked}
                   onChange={(event) => setDraftNoAutoMoveFirstMove(event.target.checked)}
@@ -349,7 +349,7 @@ export function ControlPanel({ onUndo, isInputLocked = false }: ControlPanelProp
 
         <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
           <DialogContent
-            className="bg-[#FDF6E3] text-slate-900 border-slate-400 max-w-xl p-8"
+            className="bg-[#FDF6E3] text-slate-900 border-slate-400 w-[92vw] max-w-xl p-6 sm:p-8"
             showCloseButton={false}
             onInteractOutside={(event) => event.preventDefault()}
           >
@@ -379,13 +379,13 @@ export function ControlPanel({ onUndo, isInputLocked = false }: ControlPanelProp
           </DialogContent>
         </Dialog>
 
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button variant="outline" className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer" disabled={isInputLocked}>
+          <Dialog>
+            <DialogTrigger asChild>
+            <Button variant="outline" className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer text-sm sm:text-base px-3 sm:px-4 py-2" disabled={isInputLocked}>
               About
             </Button>
           </DialogTrigger>
-          <DialogContent className="bg-[#FDF6E3] text-slate-900 border-slate-400">
+          <DialogContent className="bg-[#FDF6E3] text-slate-900 border-slate-400 w-[92vw] max-w-lg">
             <DialogHeader>
               <DialogTitle>About</DialogTitle>
             </DialogHeader>

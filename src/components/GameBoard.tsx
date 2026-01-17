@@ -1010,13 +1010,13 @@ export function GameBoard() {
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <LayoutGroup id={`game-${state.gameId}`}>
-        <div key={state.gameId} className="w-full max-w-7xl mx-auto p-4 flex flex-col items-center min-h-screen relative pb-4">
+        <div key={state.gameId} className="game-board w-full max-w-7xl mx-auto px-2 py-4 sm:p-4 flex flex-col items-center min-h-screen relative pb-4">
 
           <DragOverlay>
             {activeId && draggedStack.length > 0 ? (
               <div className="flex flex-col gap-[-3rem]">
                 {draggedStack.map((card, index) => (
-                  <div key={card.id} style={{ marginTop: index === 0 ? 0 : '-8rem' }}>
+                  <div key={card.id} style={{ marginTop: index === 0 ? 0 : 'var(--card-stack-offset)' }}>
                     <Card card={card} cardStyle={cardStyle} isDragging />
                   </div>
                 ))}
@@ -1062,9 +1062,9 @@ export function GameBoard() {
             </div>
           )}
 
-          <div className="w-full grid grid-cols-3 items-start mb-8 gap-8">
-            <div className="flex flex-col gap-3 justify-self-start w-fit">
-              <div className="grid grid-cols-[repeat(4,7rem)] gap-2">
+          <div className="w-full grid grid-cols-1 md:grid-cols-3 items-start mb-4 sm:mb-8 gap-4 sm:gap-6 lg:gap-8">
+            <div className="flex flex-col gap-3 justify-self-center sm:justify-self-start w-fit">
+              <div className="grid grid-cols-4 gap-2 md:grid-cols-[repeat(4,var(--card-width))]">
                 {FREE_CELL_IDS.map((zoneId) => {
                   const index = getIndexFromZoneId(zoneId)
                   const card = state.freeCells[index] ?? null
@@ -1072,7 +1072,7 @@ export function GameBoard() {
                   const isMovingCard = card?.id ? movingCardIds.has(card.id) : false
                   return (
                     <DroppableZone key={zoneId} id={zoneId} className={cn(
-                      "w-28 h-40 border-2 border-white/20 rounded-lg bg-white/5 flex items-center justify-center transition-opacity",
+                      "w-(--card-width) h-(--card-height) border-2 border-white/20 rounded-lg bg-white/5 flex items-center justify-center transition-opacity",
                       card?.kind === 'dragon' && card.isLocked && "opacity-50"
                     )}>
                       {card && (
@@ -1097,16 +1097,16 @@ export function GameBoard() {
               </div>
             </div>
 
-            <div className="flex flex-col gap-4 items-center justify-self-center">
+            <div className="flex flex-col gap-3 sm:gap-4 items-center justify-self-center">
               <DroppableZone
                 id="foundation-flower"
                 className={cn(
-                  "w-28 h-40 border-2 border-white/20 rounded-lg bg-white/5 flex items-center justify-center relative transition-all duration-300",
+                  "w-(--card-width) h-(--card-height) border-2 border-white/20 rounded-lg bg-white/5 flex items-center justify-center relative transition-all duration-300",
                   (undoPreviewFoundations ?? state.foundations).flower && "opacity-50"
                 )}
               >
                 <Flower className={cn(
-                  "text-white absolute size-8",
+                  "text-white absolute size-6 sm:size-8",
                 )} />
                 {isDealingCards && (
                   <Card
@@ -1132,7 +1132,7 @@ export function GameBoard() {
                 )}
               </DroppableZone>
 
-              <div className="flex items-center justify-center gap-7">
+              <div className="flex items-center justify-center gap-3 sm:gap-7">
                 <div className="flex justify-center">
                   <DragonButton
                     color="green"
@@ -1156,7 +1156,7 @@ export function GameBoard() {
                 </div>
                 <button
                   className={cn(
-                    "w-16 h-12 rounded-md border-2 flex items-center justify-center transition-all duration-200 ease-out disabled:opacity-50 disabled:cursor-not-allowed",
+                    "w-12 h-10 sm:w-16 sm:h-12 rounded-md border-2 flex items-center justify-center transition-all duration-200 ease-out disabled:opacity-50 disabled:cursor-not-allowed",
                     isAutoSolveActive
                       ? "bg-cyan-900/50 border-cyan-500 text-cyan-400 hover:bg-cyan-800 hover:text-white shadow-[0_0_10px_rgba(34,211,238,0.3)] cursor-pointer"
                       : "bg-slate-900 active:scale-95 active:brightness-90 disabled:pointer-events-auto opacity-50",
@@ -1169,92 +1169,94 @@ export function GameBoard() {
               </div>
             </div>
 
-          <div className="flex items-start justify-end justify-self-end">
-            <div className="grid grid-cols-3 gap-2 items-start">
-              {(['green', 'red', 'black'] as const).map((color) => {
-                const value = (undoPreviewFoundations ?? state.foundations)[color]
-                const foundationCard: CardType | null = value > 0 ? {
-                  id: `normal-${color}-${value}`,
-                  kind: 'normal',
-                  color,
-                  value,
-                } : null
-
-                return (
-                  <DroppableZone key={color} id={`foundation-${color}`} className={cn(
-                    "w-28 h-40 border-2 border-white/20 rounded-lg bg-white/5 flex items-center justify-center relative transition-opacity",
-                    foundationCard && "opacity-50"
-                  )}>
-                    <img
-                      src="/logo.png"
-                      alt=""
-                      aria-hidden="true"
-                      className="absolute left-1/2 top-1/2 size-16 -translate-x-1/2 -translate-y-1/2 opacity-30 pointer-events-none"
-                    />
-                    {foundationCard ? (
-                      <Card
-                        card={foundationCard}
-                        cardStyle={cardStyle}
-                        className={cn(
-                          shouldHideCard(foundationCard.id) && "opacity-0 instant-hide",
-                          movingCardIds.has(foundationCard.id) && "pointer-events-none"
-                        )}
-                        disableLayout={movingCardIds.has(foundationCard.id) || skipLayoutIds.has(foundationCard.id)}
-                        disabled={true}
-                      />
-                    ) : (
-                      <div className="text-emerald-900/30 font-bold text-3xl opacity-70">
-                        {/* Empty placeholder */}
-                      </div>
-                    )}
-                  </DroppableZone>
-                )
-              })}
-
-            </div>
-          </div>
-        </div>
-
-        <div className="w-full flex justify-center gap-4 mb-2">
-          {COLUMN_IDS.map((columnId) => {
-            const columnIndex = getIndexFromZoneId(columnId)
-            const column = state.columns[columnIndex] ?? []
-            const visibleCount = isDealingCards ? dealtCounts[columnIndex] : column.length
-
-            return (
-              <DroppableZone
-                key={columnId}
-                id={columnId}
-                className="w-32 min-h-144 flex flex-col gap-[-8rem] p-1 border-2 border-white/10 rounded-lg bg-white/5 items-center pt-2"
-              >
-                {column.slice(0, visibleCount).map((card, index) => {
-                  const isBeingDragged = draggedStack.some(c => c.id === card.id)
-                  const isTopCard = index === column.length - 1
-                  const canMove = !areCardsFaceDown && isTopCard && canMoveToFoundation(card)
-                  const isDraggable = canDragCard(card.id)
+            <div className="flex items-start justify-self-center sm:justify-self-end">
+              <div className="grid grid-cols-[repeat(3,var(--card-width))] gap-2 items-start w-fit">
+                {(['green', 'red', 'black'] as const).map((color) => {
+                  const value = (undoPreviewFoundations ?? state.foundations)[color]
+                  const foundationCard: CardType | null = value > 0 ? {
+                    id: `normal-${color}-${value}`,
+                    kind: 'normal',
+                    color,
+                    value,
+                  } : null
 
                   return (
-                    <div key={card.id} style={{ marginTop: index === 0 ? 0 : '-8rem' }}>
-                      <Card
-                        card={card}
-                        cardStyle={cardStyle}
-                        className={cn(
-                          isBeingDragged ? "opacity-0" : "",
-                          shouldHideCard(card.id) && "opacity-0 instant-hide",
-                          movingCardIds.has(card.id) && "pointer-events-none",
-                        )}
-                        disableLayout={skipLayoutIds.has(card.id) || movingCardIds.has(card.id) || movingColumnIds.has(columnIndex)}
-                        onClick={() => handleCardClick(card)}
-                        canMoveToFoundation={canMove}
-                        disabled={isBoardLocked || !isDraggable}
-                        isFaceDown={areCardsFaceDown}
+                    <DroppableZone key={color} id={`foundation-${color}`} className={cn(
+                      "w-(--card-width) h-(--card-height) border-2 border-white/20 rounded-lg bg-white/5 flex items-center justify-center relative transition-opacity",
+                      foundationCard && "opacity-50"
+                    )}>
+                      <img
+                        src="/logo.png"
+                        alt=""
+                        aria-hidden="true"
+                        className="absolute left-1/2 top-1/2 size-12 sm:size-16 -translate-x-1/2 -translate-y-1/2 opacity-30 pointer-events-none"
                       />
-                    </div>
+                      {foundationCard ? (
+                        <Card
+                          card={foundationCard}
+                          cardStyle={cardStyle}
+                          className={cn(
+                            shouldHideCard(foundationCard.id) && "opacity-0 instant-hide",
+                            movingCardIds.has(foundationCard.id) && "pointer-events-none"
+                          )}
+                          disableLayout={movingCardIds.has(foundationCard.id) || skipLayoutIds.has(foundationCard.id)}
+                          disabled={true}
+                        />
+                      ) : (
+                        <div className="text-emerald-900/30 font-bold text-2xl sm:text-3xl opacity-70">
+                          {/* Empty placeholder */}
+                        </div>
+                      )}
+                    </DroppableZone>
                   )
                 })}
-              </DroppableZone>
-            )
-          })}
+
+              </div>
+            </div>
+          </div>
+
+        <div className="w-full overflow-x-auto pb-2 sm:pb-0">
+          <div className="inline-flex w-max gap-2 sm:gap-4 px-2">
+            {COLUMN_IDS.map((columnId) => {
+              const columnIndex = getIndexFromZoneId(columnId)
+              const column = state.columns[columnIndex] ?? []
+              const visibleCount = isDealingCards ? dealtCounts[columnIndex] : column.length
+
+              return (
+                <DroppableZone
+                  key={columnId}
+                  id={columnId}
+                  className="w-(--column-width) min-h-(--column-min-height) flex flex-col gap-[-8rem] p-1 border-2 border-white/10 rounded-lg bg-white/5 items-center pt-2"
+                >
+                  {column.slice(0, visibleCount).map((card, index) => {
+                    const isBeingDragged = draggedStack.some(c => c.id === card.id)
+                    const isTopCard = index === column.length - 1
+                    const canMove = !areCardsFaceDown && isTopCard && canMoveToFoundation(card)
+                    const isDraggable = canDragCard(card.id)
+
+                    return (
+                      <div key={card.id} style={{ marginTop: index === 0 ? 0 : 'var(--card-stack-offset)' }}>
+                        <Card
+                          card={card}
+                          cardStyle={cardStyle}
+                          className={cn(
+                            isBeingDragged ? "opacity-0" : "",
+                            shouldHideCard(card.id) && "opacity-0 instant-hide",
+                            movingCardIds.has(card.id) && "pointer-events-none",
+                          )}
+                          disableLayout={skipLayoutIds.has(card.id) || movingCardIds.has(card.id) || movingColumnIds.has(columnIndex)}
+                          onClick={() => handleCardClick(card)}
+                          canMoveToFoundation={canMove}
+                          disabled={isBoardLocked || !isDraggable}
+                          isFaceDown={areCardsFaceDown}
+                        />
+                      </div>
+                    )
+                  })}
+                </DroppableZone>
+              )
+            })}
+          </div>
         </div>
 
           <ControlPanel onUndo={handleUndo} isInputLocked={isUiLocked} />

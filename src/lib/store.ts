@@ -650,10 +650,10 @@ export function collectDragons(color: DragonColor) {
     if (state.dragons[color] > 0) return state
 
     if (state.devMode) {
-      const dragonFreeIndices = state.freeCells
-        .map((cell, index) => (cell?.kind === 'dragon' && cell.color === color ? index : -1))
-        .filter(index => index !== -1)
-      const targetFreeIndex = dragonFreeIndices[0] ?? state.freeCells.indexOf(null)
+      const dragonFreeIndex = state.freeCells.findIndex(cell => cell?.kind === 'dragon' && cell.color === color)
+
+      const targetFreeIndex = dragonFreeIndex === -1 ?  state.freeCells.indexOf(null) : dragonFreeIndex
+
       if (targetFreeIndex === -1) return state
 
       const newColumns = state.columns.map(col =>
@@ -686,8 +686,8 @@ export function collectDragons(color: DragonColor) {
     }
 
     const { locations, allFound } = getDragonLocations(state, color)
-    if (!allFound && !state.devMode) return state
-    if (locations.length !== DRAGON_IDS.length && !state.devMode) return state
+    if (!allFound) return state
+    if (locations.length !== DRAGON_IDS.length) return state
 
     const targetFreeIndex = getDragonTargetIndex(locations, state.freeCells)
     if (targetFreeIndex === -1) return state
