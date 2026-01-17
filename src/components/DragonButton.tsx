@@ -1,16 +1,58 @@
 import React from 'react'
-import type { DragonColor } from '@/lib/types'
 import { useStore } from '@tanstack/react-store'
-import { gameStore, collectDragons } from '@/lib/store'
+import { Circle, Diamond, Square } from 'lucide-react'
+import type { DragonColor } from '@/lib/types'
+import { collectDragons, gameStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
-import { Circle, Square, Diamond } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface DragonButtonProps {
   color: DragonColor
+  onCollect?: () => void
+  disabled?: boolean
 }
 
-export function DragonButton({ color }: DragonButtonProps) {
+type DragonLocation = { type: 'col'; index: number } | { type: 'free'; index: number }
+
+const DRAGON_IDS = [0, 1, 2, 3]
+
+function getDragonLocations(
+  color: DragonColor,
+  columns: Array<Array<{ id: string }>>,
+  freeCells: Array<{ id: string } | null>,
+) {
+  const locations: Array<DragonLocation> = []
+
+  for (const idSuffix of DRAGON_IDS) {
+    const id = `dragon-${color}-${idSuffix}`
+    const freeIdx = freeCells.findIndex(c => c?.id === id)
+    if (freeIdx !== -1) {
+      locations.push({ type: 'free', index: freeIdx })
+      continue
+    }
+
+    const colIndex = columns.findIndex(col => col.at(-1)?.id === id)
+    if (colIndex !== -1) {
+      locations.push({ type: 'col', index: colIndex })
+      continue
+    }
+
+    return { locations, allFound: false }
+  }
+
+  return { locations, allFound: true }
+}
+
+function getDragonTargetFreeIndex(
+  locations: Array<DragonLocation>,
+  freeCells: Array<unknown>,
+) {
+  const occupied = locations.find(loc => loc.type === 'free')
+  if (occupied) return occupied.index
+  return freeCells.indexOf(null)
+}
+
+export function DragonButton({ color, onCollect, disabled }: Readonly<DragonButtonProps>) {
   const dragons = useStore(gameStore, (state) => state.dragons[color])
   const columns = useStore(gameStore, (state) => state.columns)
   const freeCells = useStore(gameStore, (state) => state.freeCells)
@@ -23,41 +65,11 @@ export function DragonButton({ color }: DragonButtonProps) {
     if (isCollected) return false
     if (status !== 'playing' && !devMode) return false
 
-    const dragonIds = [0, 1, 2, 3].map(i => `dragon-${color}-${i}`)
-    const locations: ({ type: 'col', index: number } | { type: 'free', index: number })[] = []
+    const { locations, allFound } = getDragonLocations(color, columns, freeCells)
+    if (!allFound && !devMode) return false
+    if (locations.length !== DRAGON_IDS.length && !devMode) return false
 
-    for (const id of dragonIds) {
-      const freeIdx = freeCells.findIndex(c => c?.id === id)
-      if (freeIdx !== -1) {
-        locations.push({ type: 'free', index: freeIdx })
-        continue
-      }
-      let foundInCol = false
-      for (let i = 0; i < columns.length; i++) {
-        const col = columns[i]
-        if (col.length > 0 && col[col.length - 1].id === id) {
-          locations.push({ type: 'col', index: i })
-          foundInCol = true
-          break
-        }
-      }
-      if (!foundInCol && !devMode) return false
-    }
-
-    if (locations.length !== 4 && !devMode) return false
-
-    let targetFreeIndex = -1
-    for (const loc of locations) {
-      if (loc.type === 'free') {
-        targetFreeIndex = loc.index
-        break
-      }
-    }
-    if (targetFreeIndex === -1) {
-      targetFreeIndex = freeCells.findIndex(c => c === null)
-    }
-
-    return targetFreeIndex !== -1
+    return getDragonTargetFreeIndex(locations, freeCells) !== -1
   }, [columns, freeCells, status, isCollected, color, devMode])
 
   const getIcon = () => {
@@ -69,30 +81,22 @@ export function DragonButton({ color }: DragonButtonProps) {
   }
 
   const getStyles = () => {
-    const base = "w-16 h-12 rounded-md border-2 flex items-center justify-center transition-all duration-100 active:scale-95 active:brightness-90"
+    const base = "w-16 h-12 rounded-md border-2 flex items-center justify-center transition-all duration-200 ease-out active:scale-95 active:brightness-90 disabled:pointer-events-auto disabled:cursor-not-allowed"
 
-    if (isCollected) {
-      return cn(base, "bg-slate-800 border-slate-700 text-slate-600 opacity-50 cursor-not-allowed")
-    }
-
-    if (!canCollect) {
-      if (color === 'green') return cn(base, "bg-emerald-900/30 border-emerald-900/50 text-emerald-700 cursor-not-allowed")
-      if (color === 'red') return cn(base, "bg-red-900/30 border-red-900/50 text-red-700 cursor-not-allowed")
-      if (color === 'black') return cn(base, "bg-black/30 border-black/50 text-black/70 cursor-not-allowed")
+    if (disabled || isCollected || !canCollect) {
+      return cn(base, "opacity-50")
     }
 
     if (color === 'green') return cn(base, "bg-emerald-500 border-emerald-600 text-white shadow-[0_0_15px_rgba(16,185,129,0.6)] cursor-pointer hover:bg-emerald-400")
     if (color === 'red') return cn(base, "bg-red-600 border-red-700 text-white shadow-[0_0_15px_rgba(220,38,38,0.6)] cursor-pointer hover:bg-red-500")
-    if (color === 'black') return cn(base, "bg-black border-black text-white shadow-[0_0_15px_rgba(0,0,0,0.6)] cursor-pointer hover:bg-gray-800")
-
-    return base
+    return cn(base, "bg-black border-black text-white shadow-[0_0_15px_rgba(0,0,0,0.6)] cursor-pointer hover:bg-gray-800")
   }
 
   return (
     <Button
       className={getStyles()}
-      disabled={isCollected || !canCollect}
-      onClick={() => collectDragons(color)}
+      disabled={disabled || isCollected || !canCollect}
+      onClick={onCollect ?? (() => collectDragons(color))}
     >
       {getIcon()}
     </Button>

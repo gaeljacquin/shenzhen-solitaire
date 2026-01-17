@@ -4,8 +4,10 @@ import type { Card, CardColor, DragonColor } from '@/lib/types'
 export type GameStatus = 'idle' | 'playing' | 'paused' | 'won'
 
 interface GameState {
-  columns: Card[][]
-  freeCells: (Card | null)[]
+  columns: Array<Array<Card>>
+  freeCells: Array<Card | null>
+  initialColumns: Array<Array<Card>>
+  initialFreeCells: Array<Card | null>
   foundations: {
     green: number
     red: number
@@ -18,38 +20,41 @@ interface GameState {
     black: number
   }
   status: GameStatus
-  history: (Omit<GameState, 'history' | 'status'> & { isAuto?: boolean })[]
+  history: Array<Omit<GameState, 'history' | 'status'> & { isAuto?: boolean }>
   devMode: boolean
   gameId: number
   startTime: number | null
   elapsedTime: number
   timerRunning: boolean
   isTimerVisible: boolean
+  isUndoEnabled: boolean
+  isNoAutoMoveFirstMove: boolean
+  isLocked?: boolean
 }
 
-function createDeck(): Card[] {
-  const deck: Card[] = []
+function createDeck(): Array<Card> {
+  const deck: Array<Card> = []
 
-  const colors: CardColor[] = ['green', 'red', 'black']
+  const colors: Array<CardColor> = ['green', 'red', 'black']
   colors.forEach(color => {
     for (let i = 1; i <= 9; i++) {
       deck.push({ id: `normal-${color}-${i}`, kind: 'normal', color, value: i })
     }
   })
 
-  const dragonColors: DragonColor[] = ['green', 'red', 'black']
+  const dragonColors: Array<DragonColor> = ['green', 'red', 'black']
   dragonColors.forEach(color => {
     for (let i = 0; i < 4; i++) {
       deck.push({ id: `dragon-${color}-${i}`, kind: 'dragon', color })
     }
   })
 
-  deck.push({ id: 'flower', kind: 'flower' })
+  deck.push({ id: 'flower', kind: 'flower', color: null })
 
   return deck
 }
 
-function shuffle<T>(array: T[]): T[] {
+function shuffle<T>(array: Array<T>): Array<T> {
   const newArray = [...array]
   for (let i = newArray.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -59,11 +64,12 @@ function shuffle<T>(array: T[]): T[] {
 }
 
 const TIMER_VISIBILITY_KEY = 'shenzhen-solitaire-timer-visible'
+const UNDO_ENABLED_KEY = 'shenzhen-solitaire-undo-enabled'
+const NO_AUTO_MOVE_FIRST_MOVE_KEY = 'shenzhen-solitaire-no-auto-move-first-move'
 
 function getTimerVisibilityFromStorage(): boolean {
-  if (typeof window === 'undefined') return true
   try {
-    const stored = localStorage.getItem(TIMER_VISIBILITY_KEY)
+    const stored = globalThis.localStorage.getItem(TIMER_VISIBILITY_KEY)
     return stored === null ? true : stored === 'true'
   } catch {
     return true
@@ -71,30 +77,87 @@ function getTimerVisibilityFromStorage(): boolean {
 }
 
 function saveTimerVisibilityToStorage(visible: boolean): void {
-  if (typeof window === 'undefined') return
   try {
-    localStorage.setItem(TIMER_VISIBILITY_KEY, String(visible))
+    globalThis.localStorage.setItem(TIMER_VISIBILITY_KEY, String(visible))
   } catch {
   }
 }
 
-function dealCards(): { columns: Card[][], freeCells: (Card | null)[] } {
-  const deck = shuffle(createDeck())
-  const columns: Card[][] = Array.from({ length: 8 }, () => [])
-
-  deck.forEach((card, index) => {
-    columns[index % 8].push(card)
-  })
-
-  return {
-    columns,
-    freeCells: [null, null, null]
+function getUndoEnabledFromStorage(): boolean {
+  try {
+    const stored = globalThis.localStorage.getItem(UNDO_ENABLED_KEY)
+    return stored === null ? true : stored === 'true'
+  } catch {
+    return true
   }
+}
+
+function saveUndoEnabledToStorage(enabled: boolean): void {
+  try {
+    globalThis.localStorage.setItem(UNDO_ENABLED_KEY, String(enabled))
+  } catch {
+  }
+}
+
+function getNoAutoMoveFirstMoveFromStorage(): boolean {
+  try {
+    const stored = globalThis.localStorage.getItem(NO_AUTO_MOVE_FIRST_MOVE_KEY)
+    return stored === 'true'
+  } catch {
+    return false
+  }
+}
+
+function saveNoAutoMoveFirstMoveToStorage(enabled: boolean): void {
+  try {
+    globalThis.localStorage.setItem(NO_AUTO_MOVE_FIRST_MOVE_KEY, String(enabled))
+  } catch {
+  }
+}
+
+function dealCards(
+  options: { noAutoMoveFirstMove?: boolean } = {},
+): { columns: Array<Array<Card>>, freeCells: Array<Card | null> } {
+  const { noAutoMoveFirstMove = false } = options
+
+  const dealOnce = () => {
+    const deck = shuffle(createDeck())
+    const columns: Array<Array<Card>> = Array.from({ length: 8 }, () => [])
+    const cardsPerColumn = Math.floor(deck.length / columns.length)
+    let deckIndex = 0
+
+    for (const column of columns) {
+      for (let i = 0; i < cardsPerColumn; i++) {
+        const card = deck[deckIndex]
+        column.push(card)
+        deckIndex += 1
+      }
+    }
+
+    return {
+      columns,
+      freeCells: [null, null, null],
+    }
+  }
+
+  if (!noAutoMoveFirstMove) return dealOnce()
+
+  const maxAttempts = 500
+  let attempt = 0
+  let deal = dealOnce()
+  while (attempt < maxAttempts && hasAutoMoveOnDeal(deal.columns)) {
+    attempt += 1
+    deal = dealOnce()
+  }
+
+  return deal
 }
 
 export const gameStore = new Store<GameState>({
   columns: Array.from({ length: 8 }, () => []),
   freeCells: [null, null, null],
+  initialColumns: Array.from({ length: 8 }, () => []),
+  initialFreeCells: [null, null, null],
   foundations: {
     green: 0,
     red: 0,
@@ -113,13 +176,30 @@ export const gameStore = new Store<GameState>({
   startTime: null,
   elapsedTime: 0,
   timerRunning: false,
-  isTimerVisible: true
+  isTimerVisible: true,
+  isUndoEnabled: true,
+  isNoAutoMoveFirstMove: false,
+  isLocked: false,
 })
 
 export function syncTimerVisibility() {
   gameStore.setState(state => ({
     ...state,
     isTimerVisible: getTimerVisibilityFromStorage()
+  }))
+}
+
+export function syncUndoEnabled() {
+  gameStore.setState(state => ({
+    ...state,
+    isUndoEnabled: getUndoEnabledFromStorage()
+  }))
+}
+
+export function syncNoAutoMoveFirstMove() {
+  gameStore.setState(state => ({
+    ...state,
+    isNoAutoMoveFirstMove: getNoAutoMoveFirstMoveFromStorage(),
   }))
 }
 
@@ -130,148 +210,434 @@ function canStack(bottomCard: Card, topCard: Card): boolean {
   return true
 }
 
+type SourceLocation = { type: 'column'; index: number } | { type: 'free'; index: number }
+type TargetLocation =
+  | { type: 'column'; index: number }
+  | { type: 'free'; index: number }
+  | { type: 'foundation'; id: CardColor | 'flower' }
+type HistoryEntry = Omit<GameState, 'history' | 'status'> & { isAuto?: boolean }
+
+const FOUNDATION_COLORS: Array<CardColor> = ['green', 'red', 'black']
+const DRAGON_IDS = [0, 1, 2, 3]
+
+function createHistoryEntry(state: GameState, isAuto = false): HistoryEntry {
+  return {
+    columns: state.columns,
+    freeCells: state.freeCells,
+    initialColumns: state.initialColumns,
+    initialFreeCells: state.initialFreeCells,
+    foundations: state.foundations,
+    dragons: state.dragons,
+    devMode: state.devMode,
+    gameId: state.gameId,
+    startTime: state.startTime,
+    elapsedTime: state.elapsedTime,
+    timerRunning: state.timerRunning,
+    isTimerVisible: state.isTimerVisible,
+    isUndoEnabled: state.isUndoEnabled,
+    isNoAutoMoveFirstMove: state.isNoAutoMoveFirstMove,
+    isLocked: state.isLocked,
+    isAuto,
+  }
+}
+
+function isWinState(
+  foundations: GameState['foundations'],
+  dragons: GameState['dragons'],
+): boolean {
+  return (
+    foundations.green === 9 &&
+    foundations.red === 9 &&
+    foundations.black === 9 &&
+    foundations.flower &&
+    dragons.green === 1 &&
+    dragons.red === 1 &&
+    dragons.black === 1
+  )
+}
+
+function ensureTimerRunning(state: GameState) {
+  if (!state.timerRunning && state.status === 'playing') {
+    return {
+      timerRunning: true,
+      startTime: Date.now() - state.elapsedTime,
+    }
+  }
+  return { timerRunning: state.timerRunning, startTime: state.startTime }
+}
+
+const isPlayableState = (state: GameState) => state.status === 'playing' || state.devMode
+
+function getCardSource(state: GameState, cardId: string) {
+  for (const [index, column] of state.columns.entries()) {
+    const card = column.find(c => c.id === cardId)
+    if (card) {
+      return { card, source: { type: 'column', index } as const }
+    }
+  }
+
+  const freeIndex = state.freeCells.findIndex(c => c?.id === cardId)
+  if (freeIndex !== -1) {
+    return { card: state.freeCells[freeIndex]!, source: { type: 'free', index: freeIndex } as const }
+  }
+
+  return null
+}
+
+function parseTarget(targetId: string): TargetLocation | null {
+  if (targetId.startsWith('col-')) {
+    const index = Number.parseInt(targetId.split('-')[1] ?? '', 10)
+    if (Number.isNaN(index)) return null
+    return { type: 'column', index }
+  }
+  if (targetId.startsWith('free-')) {
+    const index = Number.parseInt(targetId.split('-')[1] ?? '', 10)
+    if (Number.isNaN(index)) return null
+    return { type: 'free', index }
+  }
+  if (targetId.startsWith('foundation-')) {
+    const id = targetId.split('-')[1]
+    if (!id) return null
+    return { type: 'foundation', id: id as CardColor | 'flower' }
+  }
+  return null
+}
+
+function isValidSequence(cards: Array<Card>) {
+  for (let i = 0; i < cards.length - 1; i++) {
+    if (!canStack(cards[i], cards[i + 1])) return false
+  }
+  return true
+}
+
+function getMoveStateForSource(state: GameState, cardId: string, source: SourceLocation) {
+  const newColumns = state.columns.map(col => [...col])
+  const newFreeCells = [...state.freeCells]
+
+  if (source.type === 'column') {
+    const col = newColumns[source.index]
+    const cardIndex = col.findIndex(c => c.id === cardId)
+    if (cardIndex === -1) return null
+    const cardsToMove = col.slice(cardIndex)
+    if (!state.devMode && !isValidSequence(cardsToMove)) return null
+    newColumns[source.index] = col.slice(0, cardIndex)
+    return { cardsToMove, newColumns, newFreeCells }
+  }
+
+  const card = newFreeCells[source.index]
+  if (!card) return null
+  newFreeCells[source.index] = null
+  return { cardsToMove: [card], newColumns, newFreeCells }
+}
+
+type DragonLocation = { type: 'col'; index: number } | { type: 'free'; index: number }
+
+function getDragonLocations(state: GameState, color: DragonColor) {
+  const locations: Array<DragonLocation> = []
+
+  for (const idSuffix of DRAGON_IDS) {
+    const id = `dragon-${color}-${idSuffix}`
+    const freeIdx = state.freeCells.findIndex(c => c?.id === id)
+    if (freeIdx !== -1) {
+      locations.push({ type: 'free', index: freeIdx })
+      continue
+    }
+
+    const colIndex = state.columns.findIndex(col => col.at(-1)?.id === id)
+    if (colIndex !== -1) {
+      locations.push({ type: 'col', index: colIndex })
+      continue
+    }
+
+    return { locations, allFound: false }
+  }
+
+  return { locations, allFound: true }
+}
+
+function getDragonTargetIndex(locations: Array<DragonLocation>, freeCells: Array<Card | null>) {
+  const occupiedFreeIndex = locations.find(loc => loc.type === 'free')?.index
+  if (occupiedFreeIndex !== undefined) return occupiedFreeIndex
+  return freeCells.indexOf(null)
+}
+
+function getNextRankLocations(state: GameState) {
+  const minFoundation = Math.min(state.foundations.green, state.foundations.red, state.foundations.black)
+  const nextRank = minFoundation + 1
+  if (nextRank > 9) return null
+
+  const locations: Array<{ id: string; source: 'col' | 'free'; index: number; color: CardColor }> = []
+
+  for (const color of FOUNDATION_COLORS) {
+    if (state.foundations[color] >= nextRank) continue
+
+    const freeIdx = state.freeCells.findIndex(
+      c => c?.kind === 'normal' && c.color === color && c.value === nextRank,
+    )
+    if (freeIdx !== -1) {
+      locations.push({ id: state.freeCells[freeIdx]!.id, source: 'free', index: freeIdx, color })
+      continue
+    }
+
+    const colIndex = state.columns.findIndex(col => {
+      const card = col.at(-1)
+      return card?.kind === 'normal' && card.color === color && card.value === nextRank
+    })
+    if (colIndex !== -1) {
+      const card = state.columns[colIndex].at(-1)!
+      locations.push({ id: card.id, source: 'col', index: colIndex, color })
+      continue
+    }
+
+    return null
+  }
+
+  return { nextRank, locations }
+}
+
+function applyAutoSolveMove(
+  state: GameState,
+  nextRank: number,
+  locations: Array<{ source: 'col' | 'free'; index: number; color: CardColor }>,
+) {
+  const newColumns = state.columns.map(col => [...col])
+  const newFreeCells = [...state.freeCells]
+  const newFoundations = { ...state.foundations }
+
+  locations.forEach(loc => {
+    if (loc.source === 'col') {
+      newColumns[loc.index].pop()
+    } else {
+      newFreeCells[loc.index] = null
+    }
+    newFoundations[loc.color] = nextRank
+  })
+
+  return {
+    ...state,
+    columns: newColumns,
+    freeCells: newFreeCells,
+    foundations: newFoundations,
+  }
+}
+
+function shouldAutoMoveCard(state: GameState, card: Card, isFoundationFull: boolean) {
+  if (card.kind === 'normal') return card.value === 1
+  if (card.kind === 'flower') return isFoundationFull || !state.foundations.flower
+  return false
+}
+
+function hasAutoMoveOnDeal(columns: Array<Array<Card>>) {
+  return columns.some(col => {
+    const card = col.at(-1)
+    if (!card) return false
+    return card.kind === 'flower' || (card.kind === 'normal' && card.value === 1)
+  })
+}
+
+function getAutoMoveCandidates(state: GameState, isFoundationFull: boolean) {
+  const moves: Array<{ source: 'col' | 'free'; index: number; card: Card }> = []
+
+  state.freeCells.forEach((card, index) => {
+    if (!card) return
+    if (shouldAutoMoveCard(state, card, isFoundationFull)) {
+      moves.push({ source: 'free', index, card })
+    }
+  })
+
+  state.columns.forEach((col, index) => {
+    const card = col.at(-1)
+    if (!card) return
+    if (shouldAutoMoveCard(state, card, isFoundationFull)) {
+      moves.push({ source: 'col', index, card })
+    }
+  })
+
+  return moves
+}
+
+function applyAutoMoves(state: GameState, moves: Array<{ source: 'col' | 'free'; index: number; card: Card }>) {
+  const newColumns = state.columns.map(col => [...col])
+  const newFreeCells = [...state.freeCells]
+  const newFoundations = { ...state.foundations }
+
+  moves.forEach(move => {
+    if (move.source === 'col') {
+      newColumns[move.index].pop()
+    } else {
+      newFreeCells[move.index] = null
+    }
+    if (move.card.kind === 'normal') {
+      newFoundations[move.card.color] = 1
+    } else if (move.card.kind === 'flower') {
+      newFoundations.flower = true
+    }
+  })
+
+  let newHistory = state.history
+  if (state.history.length > 0) {
+    newHistory = [...state.history, createHistoryEntry(state, true)]
+  }
+
+  return {
+    ...state,
+    columns: newColumns,
+    freeCells: newFreeCells,
+    foundations: newFoundations,
+    history: newHistory,
+  }
+}
+
+type MoveResult = {
+  newColumns: Array<Array<Card>>
+  newFreeCells: Array<Card | null>
+  newFoundations: GameState['foundations']
+}
+
+function applyMoveToColumn(
+  state: GameState,
+  targetIndex: number,
+  cardsToMove: Array<Card>,
+  newColumns: Array<Array<Card>>,
+  newFreeCells: Array<Card | null>,
+  newFoundations: GameState['foundations'],
+): MoveResult | null {
+  const targetCol = newColumns[targetIndex]
+  const topCard = targetCol.at(-1)
+  if (topCard && !state.devMode && !canStack(topCard, cardsToMove[0])) return null
+  newColumns[targetIndex] = [...targetCol, ...cardsToMove]
+  return { newColumns, newFreeCells, newFoundations }
+}
+
+function applyMoveToFreeCell(
+  state: GameState,
+  targetIndex: number,
+  cardsToMove: Array<Card>,
+  newColumns: Array<Array<Card>>,
+  newFreeCells: Array<Card | null>,
+  newFoundations: GameState['foundations'],
+): MoveResult | null {
+  const targetCard = state.freeCells[targetIndex]
+  if (targetCard?.kind === 'dragon' && targetCard.isLocked) return null
+  if (cardsToMove.length !== 1) return null
+  if (newFreeCells[targetIndex] && !state.devMode) return null
+  newFreeCells[targetIndex] = cardsToMove[0]
+  return { newColumns, newFreeCells, newFoundations }
+}
+
+function applyMoveToFoundation(
+  state: GameState,
+  targetId: CardColor | 'flower',
+  cardsToMove: Array<Card>,
+  newColumns: Array<Array<Card>>,
+  newFreeCells: Array<Card | null>,
+  newFoundations: GameState['foundations'],
+): MoveResult | null {
+  if (cardsToMove.length !== 1) return null
+  const card = cardsToMove[0]
+
+  if (targetId === 'flower') {
+    if (card.kind !== 'flower') return null
+    newFoundations.flower = true
+    return { newColumns, newFreeCells, newFoundations }
+  }
+
+  if (card.kind !== 'normal' || card.color !== targetId) return null
+  const currentVal = newFoundations[targetId]
+  if (card.value !== currentVal + 1 && !state.devMode) return null
+  newFoundations[targetId] = card.value
+  return { newColumns, newFreeCells, newFoundations }
+}
+
+function applyMoveToTarget(
+  state: GameState,
+  target: TargetLocation,
+  cardsToMove: Array<Card>,
+  newColumns: Array<Array<Card>>,
+  newFreeCells: Array<Card | null>,
+  newFoundations: GameState['foundations'],
+) {
+  switch (target.type) {
+    case 'column':
+      return applyMoveToColumn(
+        state,
+        target.index,
+        cardsToMove,
+        newColumns,
+        newFreeCells,
+        newFoundations,
+      )
+    case 'free':
+      return applyMoveToFreeCell(
+        state,
+        target.index,
+        cardsToMove,
+        newColumns,
+        newFreeCells,
+        newFoundations,
+      )
+    case 'foundation':
+      return applyMoveToFoundation(
+        state,
+        target.id,
+        cardsToMove,
+        newColumns,
+        newFreeCells,
+        newFoundations,
+      )
+    default:
+      return null
+  }
+}
+
+function applyCardMove(
+  state: GameState,
+  cardId: string,
+  targetId: string,
+): { columns: Array<Array<Card>>; freeCells: Array<Card | null>; foundations: GameState['foundations']; history: GameState['history'] } | null {
+  const sourceInfo = getCardSource(state, cardId)
+  if (!sourceInfo) return null
+
+  const target = parseTarget(targetId)
+  if (!target) return null
+
+  const moveState = getMoveStateForSource(state, cardId, sourceInfo.source)
+  if (!moveState) return null
+
+  const newFoundations = { ...state.foundations }
+  const appliedMove = applyMoveToTarget(
+    state,
+    target,
+    moveState.cardsToMove,
+    moveState.newColumns,
+    moveState.newFreeCells,
+    newFoundations,
+  )
+  if (!appliedMove) return null
+
+  return {
+    columns: appliedMove.newColumns,
+    freeCells: appliedMove.newFreeCells,
+    foundations: appliedMove.newFoundations,
+    history: [...state.history, createHistoryEntry(state)],
+  }
+}
+
 export function moveCard(cardId: string, targetId: string, skipAutoMove: boolean = false) {
   gameStore.setState((state) => {
-    if (state.status !== 'playing' && !state.devMode) return state
+    if (!isPlayableState(state)) return state
 
-    let timerRunning = state.timerRunning
-    let startTime = state.startTime
-    if (!timerRunning && state.status === 'playing') {
-        timerRunning = true
-        startTime = Date.now() - state.elapsedTime
-    }
+    const timerState = ensureTimerRunning(state)
+    const appliedMove = applyCardMove(state, cardId, targetId)
+    if (!appliedMove) return state
 
-    let card: Card | undefined
-    let source: { type: 'column', index: number } | { type: 'free', index: number } | undefined
-
-    for (let i = 0; i < state.columns.length; i++) {
-      const found = state.columns[i].find(c => c.id === cardId)
-      if (found) {
-        card = found
-        source = { type: 'column', index: i }
-        break
-      }
-    }
-
-    if (!card) {
-      for (let i = 0; i < state.freeCells.length; i++) {
-        if (state.freeCells[i]?.id === cardId) {
-          card = state.freeCells[i]!
-          source = { type: 'free', index: i }
-          break
-        }
-      }
-    }
-
-    if (!card || !source) return state
-
-    let target: { type: 'column', index: number } | { type: 'free', index: number } | { type: 'foundation', id: string } | undefined
-
-    if (targetId.startsWith('col-')) {
-      const index = parseInt(targetId.split('-')[1])
-      target = { type: 'column', index }
-    } else if (targetId.startsWith('free-')) {
-      const index = parseInt(targetId.split('-')[1])
-      target = { type: 'free', index }
-    } else if (targetId.startsWith('foundation-')) {
-      target = { type: 'foundation', id: targetId.split('-')[1] }
-    }
-
-    if (!target) return state
-
-    const historyEntry: (Omit<GameState, 'history' | 'status'> & { isAuto?: boolean }) = {
-        columns: state.columns,
-        freeCells: state.freeCells,
-        foundations: state.foundations,
-        dragons: state.dragons,
-        devMode: state.devMode,
-        gameId: state.gameId,
-        startTime: state.startTime,
-        elapsedTime: state.elapsedTime,
-        timerRunning: state.timerRunning,
-        isTimerVisible: state.isTimerVisible,
-        isAuto: false
-    }
-
-    const newColumns = [...state.columns.map(col => [...col])]
-    const newFreeCells = [...state.freeCells]
-    const newFoundations = { ...state.foundations }
-    let cardsToMove: Card[] = []
-
-    if (source.type === 'column') {
-      const col = newColumns[source.index]
-      const cardIndex = col.findIndex(c => c.id === cardId)
-      cardsToMove = col.slice(cardIndex)
-
-      if (!state.devMode) {
-        for (let i = 0; i < cardsToMove.length - 1; i++) {
-            if (!canStack(cardsToMove[i], cardsToMove[i+1])) return state
-        }
-      }
-
-      newColumns[source.index] = col.slice(0, cardIndex)
-
-    } else if (source.type === 'free') {
-      cardsToMove = [newFreeCells[source.index]!]
-      newFreeCells[source.index] = null
-    }
-
-    if (target.type === 'column') {
-      const targetCol = newColumns[target.index]
-      if (targetCol.length > 0 && !state.devMode) {
-        const topCard = targetCol[targetCol.length - 1]
-        if (!canStack(topCard, cardsToMove[0])) return state
-      }
-
-      newColumns[target.index].push(...cardsToMove)
-
-    } else if (target.type === 'free') {
-      const targetCard = state.freeCells[target.index]
-      if (targetCard?.kind === 'dragon' && targetCard.isLocked) return state
-
-      if (cardsToMove.length === 1 && (!newFreeCells[target.index] || state.devMode)) {
-        newFreeCells[target.index] = cardsToMove[0]
-      } else {
-        return state
-      }
-
-    } else if (target.type === 'foundation') {
-       if (cardsToMove.length === 1) {
-          const c = cardsToMove[0]
-
-          if (target.id === 'flower' && c.kind === 'flower') {
-              newFoundations.flower = true
-          } else if (c.kind === 'normal' && c.color === target.id) {
-              const currentVal = newFoundations[target.id as 'green'|'red'|'black']
-              if (c.value === currentVal + 1 || state.devMode) {
-                  newFoundations[target.id as 'green'|'red'|'black'] = c.value
-              } else {
-                  return state
-              }
-          } else {
-              return state
-          }
-       } else {
-           return state
-       }
-    }
-
-    let status: GameStatus = state.status
-    const newDragons = { ...state.dragons }
-    if (newFoundations.green === 9 && newFoundations.red === 9 && newFoundations.black === 9 && newFoundations.flower && newDragons.green === 1 && newDragons.red === 1 && newDragons.black === 1) {
-        status = 'won'
-        timerRunning = false
-    }
-
+    const isWin = isWinState(appliedMove.foundations, state.dragons)
     const nextState = {
       ...state,
-      columns: newColumns,
-      freeCells: newFreeCells,
-      foundations: newFoundations,
-      history: [...state.history, historyEntry],
-      status,
-      timerRunning,
-      startTime
+      ...appliedMove,
+      status: isWin ? 'won' : state.status,
+      timerRunning: isWin ? false : timerState.timerRunning,
+      startTime: timerState.startTime,
     }
 
     return skipAutoMove ? nextState : autoMoveOnes(nextState)
@@ -279,131 +645,203 @@ export function moveCard(cardId: string, targetId: string, skipAutoMove: boolean
 }
 
 export function collectDragons(color: DragonColor) {
-    gameStore.setState((state) => {
-        if (state.status !== 'playing' && !state.devMode) return state
+  gameStore.setState((state) => {
+    if (!isPlayableState(state)) return state
+    if (state.dragons[color] > 0) return state
 
-        if (state.dragons[color] > 0) return state
+    if (state.devMode) {
+      const dragonFreeIndex = state.freeCells.findIndex(cell => cell?.kind === 'dragon' && cell.color === color)
 
-        const dragonIds = [0, 1, 2, 3].map(i => `dragon-${color}-${i}`)
-        const locations: ({ type: 'col', index: number } | { type: 'free', index: number })[] = []
+      const targetFreeIndex = dragonFreeIndex === -1 ?  state.freeCells.indexOf(null) : dragonFreeIndex
 
-        for (const id of dragonIds) {
-            const freeIdx = state.freeCells.findIndex(c => c?.id === id)
-            if (freeIdx !== -1) {
-                locations.push({ type: 'free', index: freeIdx })
-                continue
-            }
-            let foundInCol = false
-            for (let i = 0; i < state.columns.length; i++) {
-                const col = state.columns[i]
-                if (col.length > 0 && col[col.length - 1].id === id) {
-                    locations.push({ type: 'col', index: i })
-                    foundInCol = true
-                    break
-                }
-            }
-            if (!foundInCol && !state.devMode) return state
-        }
+      if (targetFreeIndex === -1) return state
 
-        if (locations.length !== 4 && !state.devMode) return state
+      const newColumns = state.columns.map(col =>
+        col.filter(card => !(card.kind === 'dragon' && card.color === color)),
+      )
+      const newFreeCells = state.freeCells.map(cell => {
+        if (cell?.kind === 'dragon' && cell.color === color) return null
+        return cell
+      })
 
-        let targetFreeIndex = -1
+      newFreeCells[targetFreeIndex] = {
+        id: `dragon-${color}-locked`,
+        kind: 'dragon',
+        color,
+        isLocked: true,
+      }
 
-        const occupiedFreeIndices = locations
-            .filter(loc => loc.type === 'free')
-            .map(loc => loc.index)
-            .sort((a, b) => a - b)
+      const nextState = {
+        ...state,
+        columns: newColumns,
+        freeCells: newFreeCells,
+        dragons: {
+          ...state.dragons,
+          [color]: 1,
+        },
+        history: [...state.history, createHistoryEntry(state)],
+      }
 
-        if (occupiedFreeIndices.length > 0) {
-            targetFreeIndex = occupiedFreeIndices[0]
-        } else {
-            targetFreeIndex = state.freeCells.findIndex(c => c === null)
-        }
+      return autoMoveOnes(nextState)
+    }
 
-        if (targetFreeIndex === -1) return state
+    const { locations, allFound } = getDragonLocations(state, color)
+    if (!allFound) return state
+    if (locations.length !== DRAGON_IDS.length) return state
 
-        const historyEntry: (Omit<GameState, 'history' | 'status'> & { isAuto?: boolean }) = {
-            columns: state.columns,
-            freeCells: state.freeCells,
-            foundations: state.foundations,
-            dragons: state.dragons,
-            devMode: state.devMode,
-            gameId: state.gameId,
-            startTime: state.startTime,
-            elapsedTime: state.elapsedTime,
-            timerRunning: state.timerRunning,
-            isTimerVisible: state.isTimerVisible,
-            isAuto: false
-        }
+    const targetFreeIndex = getDragonTargetIndex(locations, state.freeCells)
+    if (targetFreeIndex === -1) return state
 
-        const newColumns = state.columns.map(col => [...col])
-        const newFreeCells = [...state.freeCells]
+    const newColumns = state.columns.map(col => [...col])
+    const newFreeCells = [...state.freeCells]
 
-        // Remove all dragons
-        locations.forEach(loc => {
-            if (loc.type === 'col') {
-                newColumns[loc.index].pop()
-            } else {
-                newFreeCells[loc.index] = null
-            }
-        })
-
-        // Place "locked" marker.
-        newFreeCells[targetFreeIndex] = { id: `dragon-${color}-locked`, kind: 'dragon', color, isLocked: true }
-
-        const nextState = {
-            ...state,
-            columns: newColumns,
-            freeCells: newFreeCells,
-            dragons: {
-                ...state.dragons,
-                [color]: 1
-            },
-            history: [...state.history, historyEntry]
-        }
-
-        return autoMoveOnes(nextState)
+    locations.forEach(loc => {
+      if (loc.type === 'col') {
+        newColumns[loc.index].pop()
+      } else {
+        newFreeCells[loc.index] = null
+      }
     })
+
+    newFreeCells[targetFreeIndex] = {
+      id: `dragon-${color}-locked`,
+      kind: 'dragon',
+      color,
+      isLocked: true,
+    }
+
+    const nextState = {
+      ...state,
+      columns: newColumns,
+      freeCells: newFreeCells,
+      dragons: {
+        ...state.dragons,
+        [color]: 1,
+      },
+      history: [...state.history, createHistoryEntry(state)],
+    }
+
+    return autoMoveOnes(nextState)
+  })
 }
 
 export function undo() {
-    gameStore.setState((state) => {
-        if (state.history.length === 0) return state
+    gameStore.setState((state) => computeUndoState(state) ?? state)
+}
 
-        const history = [...state.history]
-        let previous = history.pop()!
-        let newState = {
-            ...state,
+export function computeUndoState(state: GameState): GameState | null {
+    if (!state.isUndoEnabled) return null
+    if (state.history.length === 0) return null
+
+    const history = [...state.history]
+    let previous = history.pop()!
+    let newState = {
+        ...state,
+        ...previous,
+        history: history,
+        status: 'playing' as GameStatus,
+        timerRunning: true,
+        isTimerVisible: state.isTimerVisible,
+        isUndoEnabled: state.isUndoEnabled,
+        isNoAutoMoveFirstMove: state.isNoAutoMoveFirstMove,
+    }
+
+    if (newState.status === 'playing') {
+        newState.timerRunning = true
+    }
+
+    while (previous.isAuto && history.length > 0) {
+        previous = history.pop()!
+        newState = {
+            ...newState,
             ...previous,
             history: history,
-            status: 'playing' as GameStatus,
-            timerRunning: true,
-            isTimerVisible: state.isTimerVisible
+            isTimerVisible: state.isTimerVisible,
+            isUndoEnabled: state.isUndoEnabled,
+            isNoAutoMoveFirstMove: state.isNoAutoMoveFirstMove,
         }
+    }
 
-        if (newState.status === 'playing') {
-            newState.timerRunning = true
-        }
-
-        while (previous.isAuto && history.length > 0) {
-            previous = history.pop()!
-            newState = {
-                ...newState,
-                ...previous,
-                history: history,
-                isTimerVisible: state.isTimerVisible
-            }
-        }
-
-        return newState
-    })
+    return newState
 }
 
 export function newGame() {
-    const newState = dealCards()
-    gameStore.setState((s) => ({
-        columns: newState.columns,
-        freeCells: newState.freeCells,
+    gameStore.setState((s) => {
+        const newState = dealCards({ noAutoMoveFirstMove: s.isNoAutoMoveFirstMove })
+        const initialColumns = newState.columns.map(col => [...col])
+        const initialFreeCells = [...newState.freeCells]
+        return {
+            columns: newState.columns,
+            freeCells: newState.freeCells,
+            initialColumns,
+            initialFreeCells,
+            foundations: {
+                green: 0,
+                red: 0,
+                black: 0,
+                flower: false
+            },
+            dragons: {
+                green: 0,
+                red: 0,
+                black: 0
+            },
+            status: 'playing',
+            history: [],
+            devMode: s.devMode,
+            gameId: s.gameId + 1,
+            startTime: null,
+            elapsedTime: 0,
+            timerRunning: false,
+            isTimerVisible: s.isTimerVisible,
+            isUndoEnabled: s.isUndoEnabled,
+            isNoAutoMoveFirstMove: s.isNoAutoMoveFirstMove,
+            isLocked: s.isLocked,
+        }
+    })
+}
+
+export function newGameNoAutoMoveFirstMove() {
+    gameStore.setState((s) => {
+        const newState = dealCards({ noAutoMoveFirstMove: true })
+        const initialColumns = newState.columns.map(col => [...col])
+        const initialFreeCells = [...newState.freeCells]
+        return {
+            columns: newState.columns,
+            freeCells: newState.freeCells,
+            initialColumns,
+            initialFreeCells,
+            foundations: {
+                green: 0,
+                red: 0,
+                black: 0,
+                flower: false
+            },
+            dragons: {
+                green: 0,
+                red: 0,
+                black: 0
+            },
+            status: 'playing',
+            history: [],
+            devMode: s.devMode,
+            gameId: s.gameId + 1,
+            startTime: null,
+            elapsedTime: 0,
+            timerRunning: false,
+            isTimerVisible: s.isTimerVisible,
+            isUndoEnabled: s.isUndoEnabled,
+            isNoAutoMoveFirstMove: s.isNoAutoMoveFirstMove,
+            isLocked: s.isLocked,
+        }
+    })
+}
+
+export function restartGame() {
+    gameStore.setState((state) => ({
+        ...state,
+        columns: state.initialColumns.map(col => [...col]),
+        freeCells: [...state.initialFreeCells],
         foundations: {
             green: 0,
             red: 0,
@@ -417,17 +855,10 @@ export function newGame() {
         },
         status: 'playing',
         history: [],
-        devMode: s.devMode,
-        gameId: s.gameId + 1,
         startTime: null,
         elapsedTime: 0,
-        timerRunning: false,
-        isTimerVisible: s.isTimerVisible
+        timerRunning: false
     }))
-}
-
-export function restartGame() {
-    newGame()
 }
 
 export function pauseGame() {
@@ -447,196 +878,61 @@ export function resumeGame() {
     }))
 }
 
-export function performWandMove() {
-    gameStore.setState((state) => {
-        if (state.status !== 'playing' && !state.devMode) return state
+export function autoSolve() {
+  gameStore.setState((state) => {
+    if (!isPlayableState(state)) return state
 
-        let currentState = { ...state }
-        let moved = true
-        let historyEntry: (Omit<GameState, 'history' | 'status'> & { isAuto?: boolean }) | null = null
+    let currentState = { ...state }
+    let historyEntry: HistoryEntry | null = null
 
-        while (moved) {
-            moved = false
+    let result = getNextRankLocations(currentState)
+    while (result && result.locations.length > 0) {
+      historyEntry = historyEntry ?? createHistoryEntry(state)
+      currentState = applyAutoSolveMove(
+        currentState,
+        result.nextRank,
+        result.locations.map(({ source, index, color }) => ({ source, index, color })),
+      )
+      result = getNextRankLocations(currentState)
+    }
 
-            const minFoundation = Math.min(currentState.foundations.green, currentState.foundations.red, currentState.foundations.black)
-            const nextRank = minFoundation + 1
+    if (!historyEntry) return state
 
-            if (nextRank > 9) break
+    const status = isWinState(currentState.foundations, currentState.dragons)
+      ? 'won'
+      : currentState.status
 
-            const colors: CardColor[] = ['green', 'red', 'black']
-            let allAvailable = true
-            const locations: { id: string, source: 'col' | 'free', index: number, color: CardColor }[] = []
-
-            for (const color of colors) {
-                if (currentState.foundations[color] >= nextRank) continue
-
-                let found = false
-
-                const freeIdx = currentState.freeCells.findIndex(c => c?.kind === 'normal' && c.color === color && c.value === nextRank)
-                if (freeIdx !== -1) {
-                    locations.push({ id: currentState.freeCells[freeIdx]!.id, source: 'free', index: freeIdx, color })
-                    found = true
-                } else {
-                    for (let i = 0; i < currentState.columns.length; i++) {
-                        const col = currentState.columns[i]
-                        if (col.length > 0) {
-                            const card = col[col.length - 1]
-                            if (card.kind === 'normal' && card.color === color && card.value === nextRank) {
-                                locations.push({ id: card.id, source: 'col', index: i, color })
-                                found = true
-                                break
-                            }
-                        }
-                    }
-                }
-
-                if (!found) {
-                    allAvailable = false
-                    break
-                }
-            }
-
-            if (allAvailable && locations.length > 0) {
-                if (!historyEntry) {
-                     historyEntry = {
-                        columns: state.columns,
-                        freeCells: state.freeCells,
-                        foundations: state.foundations,
-                        dragons: state.dragons,
-                        devMode: state.devMode,
-                        gameId: state.gameId,
-                        startTime: state.startTime,
-                        elapsedTime: state.elapsedTime,
-                        timerRunning: state.timerRunning,
-                        isTimerVisible: state.isTimerVisible,
-                        isAuto: false
-                    }
-                }
-
-                const newColumns = currentState.columns.map(col => [...col])
-                const newFreeCells = [...currentState.freeCells]
-                const newFoundations = { ...currentState.foundations }
-
-                locations.forEach(loc => {
-                    if (loc.source === 'col') {
-                        newColumns[loc.index].pop()
-                    } else {
-                        newFreeCells[loc.index] = null
-                    }
-                    newFoundations[loc.color] = nextRank
-                })
-
-                currentState = {
-                    ...currentState,
-                    columns: newColumns,
-                    freeCells: newFreeCells,
-                    foundations: newFoundations
-                }
-                moved = true
-            }
-        }
-
-        if (historyEntry) {
-            let status: GameStatus = currentState.status
-            if (currentState.foundations.green === 9 && currentState.foundations.red === 9 && currentState.foundations.black === 9 && currentState.foundations.flower && currentState.dragons.green === 1 && currentState.dragons.red === 1 && currentState.dragons.black === 1) {
-                status = 'won'
-            }
-
-            const nextState = {
-                ...currentState,
-                history: [...state.history, historyEntry],
-                status
-            }
-            return autoMoveOnes(nextState)
-        }
-
-        return state
-    })
+    const nextState = {
+      ...currentState,
+      history: [...state.history, historyEntry],
+      status,
+    }
+    return autoMoveOnes(nextState)
+  })
 }
 
 function autoMoveOnes(state: GameState): GameState {
-    let currentState = { ...state }
-    let moved = true
+  let currentState = { ...state }
+  let moved = true
+  const isFoundationFull =
+    currentState.foundations.green === 9 &&
+    currentState.foundations.red === 9 &&
+    currentState.foundations.black === 9
 
-    // Check if foundation is full (all three colors at 9) to auto-move flower
-    const isFoundationFull = currentState.foundations.green === 9 && currentState.foundations.red === 9 && currentState.foundations.black === 9
+  while (moved) {
+    moved = false
+    const moves = getAutoMoveCandidates(currentState, isFoundationFull)
+    if (moves.length === 0) continue
+    currentState = applyAutoMoves(currentState, moves)
+    moved = true
+  }
 
-    while (moved) {
-        moved = false
-        const moves: { source: 'col' | 'free', index: number, card: Card }[] = []
+  if (isWinState(currentState.foundations, currentState.dragons)) {
+    currentState.status = 'won'
+    currentState.timerRunning = false
+  }
 
-        currentState.freeCells.forEach((c, i) => {
-            if (c) {
-                if ((c.kind === 'normal' && c.value === 1) || (c.kind === 'flower' && (isFoundationFull || !currentState.foundations.flower))) {
-                    moves.push({ source: 'free', index: i, card: c })
-                }
-            }
-        })
-
-        currentState.columns.forEach((col, i) => {
-            if (col.length > 0) {
-                const c = col[col.length - 1]
-                if ((c.kind === 'normal' && c.value === 1) || (c.kind === 'flower' && (isFoundationFull || !currentState.foundations.flower))) {
-                    moves.push({ source: 'col', index: i, card: c })
-                }
-            }
-        })
-
-        if (moves.length > 0) {
-            const newColumns = currentState.columns.map(col => [...col])
-            const newFreeCells = [...currentState.freeCells]
-            const newFoundations = { ...currentState.foundations }
-
-            moves.forEach(move => {
-                if (move.source === 'col') {
-                    newColumns[move.index].pop()
-                } else {
-                    newFreeCells[move.index] = null
-                }
-                // Update foundation
-                if (move.card.kind === 'normal') {
-                    newFoundations[move.card.color] = 1
-                } else if (move.card.kind === 'flower') {
-                    newFoundations.flower = true
-                }
-            })
-
-            let newHistory = currentState.history
-
-            if (currentState.history.length > 0) {
-                const historyEntry: (Omit<GameState, 'history' | 'status'> & { isAuto?: boolean }) = {
-                    columns: currentState.columns,
-                    freeCells: currentState.freeCells,
-                    foundations: currentState.foundations,
-                    dragons: currentState.dragons,
-                    devMode: currentState.devMode,
-                    gameId: currentState.gameId,
-                    startTime: currentState.startTime,
-                    elapsedTime: currentState.elapsedTime,
-                    timerRunning: currentState.timerRunning,
-                    isTimerVisible: currentState.isTimerVisible,
-                    isAuto: true // Mark as auto-move
-                }
-                newHistory = [...currentState.history, historyEntry]
-            }
-
-            currentState = {
-                ...currentState,
-                columns: newColumns,
-                freeCells: newFreeCells,
-                foundations: newFoundations,
-                history: newHistory
-            }
-            moved = true
-        }
-    }
-
-    if (currentState.foundations.green === 9 && currentState.foundations.red === 9 && currentState.foundations.black === 9 && currentState.foundations.flower && currentState.dragons.green === 1 && currentState.dragons.red === 1 && currentState.dragons.black === 1) {
-        currentState.status = 'won'
-        currentState.timerRunning = false
-    }
-
-    return currentState
+  return currentState
 }
 
 export function toggleDevMode() {
@@ -650,10 +946,11 @@ export function triggerAutoMove() {
     gameStore.setState(state => {
         if (state.status !== 'playing' && !state.devMode) return state
 
-        let nextState = { ...state }
-        if (!state.timerRunning && state.status === 'playing') {
-            nextState.timerRunning = true
-            nextState.startTime = Date.now() - state.elapsedTime
+        const timerState = ensureTimerRunning(state)
+        const nextState = {
+            ...state,
+            timerRunning: timerState.timerRunning,
+            startTime: timerState.startTime
         }
 
         return autoMoveOnes(nextState)
@@ -667,6 +964,14 @@ export function updateTimer(elapsed: number) {
     }))
 }
 
+export function setTimerVisibility(visible: boolean) {
+    saveTimerVisibilityToStorage(visible)
+    gameStore.setState(state => ({
+        ...state,
+        isTimerVisible: visible
+    }))
+}
+
 export function toggleTimerVisibility() {
     gameStore.setState(state => {
         const newVisibility = !state.isTimerVisible
@@ -676,4 +981,20 @@ export function toggleTimerVisibility() {
             isTimerVisible: newVisibility
         }
     })
+}
+
+export function setUndoEnabled(enabled: boolean) {
+    saveUndoEnabledToStorage(enabled)
+    gameStore.setState(state => ({
+        ...state,
+        isUndoEnabled: enabled
+    }))
+}
+
+export function setNoAutoMoveFirstMove(enabled: boolean) {
+    saveNoAutoMoveFirstMoveToStorage(enabled)
+    gameStore.setState(state => ({
+        ...state,
+        isNoAutoMoveFirstMove: enabled,
+    }))
 }

@@ -140,3 +140,53 @@ code {
     font-synthesis: none;
   }
 }
+
+.game-board {
+  --card-width: 7rem;
+  --card-height: 10rem;
+  --card-stack-offset: -8rem;
+  --column-width: 8rem;
+  --column-min-height: 36rem;
+}
+
+@media (max-width: 1024px) {
+  .game-board {
+    --card-width: 6.5rem;
+    --card-height: 9.25rem;
+    --card-stack-offset: -7.25rem;
+    --column-width: 7.25rem;
+    --column-min-height: 32rem;
+  }
+}
+
+@media (max-width: 860px) {
+  .game-board {
+    --card-width: 6rem;
+    --card-height: 8.75rem;
+    --card-stack-offset: -6.75rem;
+    --column-width: 6.75rem;
+    --column-min-height: 30rem;
+  }
+}
+
+@media (min-width: 810px) and (max-width: 900px) {
+  .game-board {
+    --column-width: 7.75rem;
+  }
+}
+
+@media (min-width: 820px) and (max-width: 900px) and (orientation: portrait) {
+  .game-board {
+    --column-width: 8rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .game-board {
+    --card-width: 5.25rem;
+    --card-height: 7.5rem;
+    --card-stack-offset: -5.5rem;
+    --column-width: 6rem;
+    --column-min-height: 28rem;
+  }
+}
