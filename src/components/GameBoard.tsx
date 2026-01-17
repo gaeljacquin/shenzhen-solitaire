@@ -1091,6 +1091,12 @@ export function GameBoard() {
                     "w-28 h-40 border-2 border-white/20 rounded-lg bg-white/5 flex items-center justify-center relative transition-opacity",
                     foundationCard && "opacity-50"
                   )}>
+                    <img
+                      src="/logo.png"
+                      alt=""
+                      aria-hidden="true"
+                      className="absolute left-1/2 top-1/2 size-16 -translate-x-1/2 -translate-y-1/2 opacity-30 pointer-events-none"
+                    />
                     {foundationCard ? (
                       <Card
                         card={foundationCard}
