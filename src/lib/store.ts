@@ -6,6 +6,8 @@ export type GameStatus = 'idle' | 'playing' | 'paused' | 'won'
 interface GameState {
   columns: Card[][]
   freeCells: (Card | null)[]
+  initialColumns: Card[][]
+  initialFreeCells: (Card | null)[]
   foundations: {
     green: number
     red: number
@@ -115,6 +117,8 @@ function dealCards(): { columns: Card[][], freeCells: (Card | null)[] } {
 export const gameStore = new Store<GameState>({
   columns: Array.from({ length: 8 }, () => []),
   freeCells: [null, null, null],
+  initialColumns: Array.from({ length: 8 }, () => []),
+  initialFreeCells: [null, null, null],
   foundations: {
     green: 0,
     red: 0,
@@ -210,6 +214,8 @@ export function moveCard(cardId: string, targetId: string, skipAutoMove: boolean
     const historyEntry: (Omit<GameState, 'history' | 'status'> & { isAuto?: boolean }) = {
         columns: state.columns,
         freeCells: state.freeCells,
+        initialColumns: state.initialColumns,
+        initialFreeCells: state.initialFreeCells,
         foundations: state.foundations,
         dragons: state.dragons,
         devMode: state.devMode,
@@ -354,6 +360,8 @@ export function collectDragons(color: DragonColor) {
         const historyEntry: (Omit<GameState, 'history' | 'status'> & { isAuto?: boolean }) = {
             columns: state.columns,
             freeCells: state.freeCells,
+            initialColumns: state.initialColumns,
+            initialFreeCells: state.initialFreeCells,
             foundations: state.foundations,
             dragons: state.dragons,
             devMode: state.devMode,
@@ -434,9 +442,13 @@ export function undo() {
 
 export function newGame() {
     const newState = dealCards()
+    const initialColumns = newState.columns.map(col => [...col])
+    const initialFreeCells = [...newState.freeCells]
     gameStore.setState((s) => ({
         columns: newState.columns,
         freeCells: newState.freeCells,
+        initialColumns,
+        initialFreeCells,
         foundations: {
             green: 0,
             red: 0,
@@ -461,7 +473,27 @@ export function newGame() {
 }
 
 export function restartGame() {
-    newGame()
+    gameStore.setState((state) => ({
+        ...state,
+        columns: state.initialColumns.map(col => [...col]),
+        freeCells: [...state.initialFreeCells],
+        foundations: {
+            green: 0,
+            red: 0,
+            black: 0,
+            flower: false
+        },
+        dragons: {
+            green: 0,
+            red: 0,
+            black: 0
+        },
+        status: 'playing',
+        history: [],
+        startTime: null,
+        elapsedTime: 0,
+        timerRunning: false
+    }))
 }
 
 export function pauseGame() {
@@ -531,10 +563,12 @@ export function performWandMove() {
             }
 
             if (allAvailable && locations.length > 0) {
-                if (!historyEntry) {
+                    if (!historyEntry) {
                      historyEntry = {
                         columns: state.columns,
                         freeCells: state.freeCells,
+                        initialColumns: state.initialColumns,
+                        initialFreeCells: state.initialFreeCells,
                         foundations: state.foundations,
                         dragons: state.dragons,
                         devMode: state.devMode,
@@ -642,6 +676,8 @@ function autoMoveOnes(state: GameState): GameState {
                 const historyEntry: (Omit<GameState, 'history' | 'status'> & { isAuto?: boolean }) = {
                     columns: currentState.columns,
                     freeCells: currentState.freeCells,
+                    initialColumns: currentState.initialColumns,
+                    initialFreeCells: currentState.initialFreeCells,
                     foundations: currentState.foundations,
                     dragons: currentState.dragons,
                     devMode: currentState.devMode,

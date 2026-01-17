@@ -65,6 +65,8 @@ export function ControlPanel() {
   const hasOptionChanges = timerChanged || undoChanged
   const needsRestart = isGameInProgress && undoChanged && optionsRequiringRestart.has('undo-moves')
   const saveLabel = needsRestart ? 'Save (with restart)' : 'Save'
+  const hasManualMoves = history.some(entry => !entry.isAuto)
+  const areYouSureText = 'Are you sure? All progress made will be lost.'
 
   const renderOptionLabel = (label: string, optionId: string, isChanged: boolean) => (
     <span className={cn(isChanged ? 'italic' : 'not-italic')}>
@@ -160,16 +162,16 @@ export function ControlPanel() {
             <Button
               variant="outline"
               className="bg-slate-100 text-slate-900 border-slate-300 hover:bg-slate-200 cursor-pointer"
-              disabled={status === 'won'}
+              disabled={status === 'won' || !hasManualMoves}
             >
               Restart
             </Button>
           </DialogTrigger>
           <DialogContent className="bg-[#FDF6E3] text-slate-900 border-slate-400">
             <DialogHeader>
-              <DialogTitle>Restart Game?</DialogTitle>
+              <DialogTitle>Restart</DialogTitle>
               <DialogDescription className="text-slate-700">
-                Are you sure you want to restart the current game? All progress will be lost.
+                {areYouSureText}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
@@ -200,9 +202,9 @@ export function ControlPanel() {
             </DialogTrigger>
             <DialogContent className="bg-[#FDF6E3] text-slate-900 border-slate-400">
               <DialogHeader>
-                <DialogTitle>Start New Game?</DialogTitle>
+                <DialogTitle>New Game</DialogTitle>
                 <DialogDescription className="text-slate-700">
-                  Are you sure you want to start a new game? All progress will be lost.
+                  {areYouSureText}
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter>
