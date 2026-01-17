@@ -154,6 +154,7 @@ export function GameBoard() {
   const [floatingCards, setFloatingCards] = useState<Array<FloatingCardMove>>([])
   const [isAutoMoving, setIsAutoMoving] = useState<boolean>(false)
   const [isUndoing, setIsUndoing] = useState(false)
+  const [undoPreviewFoundations, setUndoPreviewFoundations] = useState<GameState['foundations'] | null>(null)
   const [skipLayoutIds, setSkipLayoutIds] = useState<Set<string>>(() => new Set())
   const lastClickRef = useRef<{ id: string; time: number } | null>(null)
   const [isDealingCards, setIsDealingCards] = useState(false)
@@ -369,6 +370,7 @@ export function GameBoard() {
   const finalizeUndoMoves = (movingIds: Array<string>) => {
     flushSync(() => {
       undo()
+      setUndoPreviewFoundations(null)
       setMovingCardIds(prev => {
         const next = new Set(prev)
         for (const id of movingIds) {
@@ -615,10 +617,11 @@ export function GameBoard() {
       const column = currentState.columns[i]
       const cardIndex = column.findIndex(c => c.id === cardId)
       if (cardIndex !== -1) {
+        const isTop = column.slice(cardIndex + 1).every(card => movingCardIds.has(card.id))
         return {
           type: 'col' as const,
           index: i,
-          isTop: cardIndex === column.length - 1,
+          isTop,
         }
       }
     }
@@ -809,7 +812,7 @@ export function GameBoard() {
     lastClickRef.current = { id: card.id, time: now }
   }
 
-  const shouldSkipUndoCard = (cardId: string, currentPosition: string, targetPosition: string) => {
+  const isPriorityUndoCard = (cardId: string, currentPosition: string, targetPosition: string) => {
     if (!cardId.startsWith('normal-') || !cardId.endsWith('-1')) return false
     if (!currentPosition.startsWith('foundation-')) return false
     return targetPosition.startsWith('col-') || targetPosition.startsWith('free-')
@@ -823,13 +826,16 @@ export function GameBoard() {
     const currentPositions = getCardPositionMap(currentState)
     const targetPositions = getCardPositionMap(targetState)
     const movingIds: Array<string> = []
+    const priorityIds = new Set<string>()
     const fromRects = new Map<string, DOMRect>()
     const toRects = new Map<string, DOMRect>()
 
     for (const [cardId, targetPosition] of targetPositions) {
       const currentPosition = currentPositions.get(cardId)
       if (!currentPosition || currentPosition === targetPosition) continue
-      if (shouldSkipUndoCard(cardId, currentPosition, targetPosition)) continue
+      if (isPriorityUndoCard(cardId, currentPosition, targetPosition)) {
+        priorityIds.add(cardId)
+      }
 
       const sourceEl = document.querySelector(`[data-card-id="${cardId}"]`)
       if (!sourceEl) continue
@@ -843,7 +849,7 @@ export function GameBoard() {
       movingIds.push(cardId)
     }
 
-    return { movingIds, fromRects, toRects }
+    return { movingIds, fromRects, toRects, priorityIds }
   }
 
   const buildUndoFloatingMoves = (
@@ -851,6 +857,7 @@ export function GameBoard() {
     movingIds: Array<string>,
     fromRects: Map<string, DOMRect>,
     toRects: Map<string, DOMRect>,
+    priorityIds: Set<string>,
   ) => {
     const pendingMoves: Array<FloatingCardMove> = []
     const remaining = { count: 0 }
@@ -874,12 +881,15 @@ export function GameBoard() {
         }
       }
 
+      const isPriority = priorityIds.has(cardId)
       pendingMoves.push({
         id: animationId,
         card,
         from,
         to,
         onComplete,
+        transitionType: isPriority ? 'tween' : undefined,
+        duration: isPriority ? 0.2 : undefined,
       })
     }
 
@@ -894,7 +904,11 @@ export function GameBoard() {
     if (!targetState) return
 
     const stackOffset = getStackOffset()
-    const { movingIds, fromRects, toRects } = collectUndoMovements(currentState, targetState, stackOffset)
+    const { movingIds, fromRects, toRects, priorityIds } = collectUndoMovements(
+      currentState,
+      targetState,
+      stackOffset,
+    )
 
     if (movingIds.length === 0) {
       undo()
@@ -906,6 +920,7 @@ export function GameBoard() {
       movingIds,
       fromRects,
       toRects,
+      priorityIds,
     )
 
     if (pendingMoves.length === 0) {
@@ -915,6 +930,7 @@ export function GameBoard() {
 
     flushSync(() => {
       setIsUndoing(true)
+      setUndoPreviewFoundations(targetState.foundations)
       setSkipLayoutIds(new Set(movingIds))
       updateMovingCardIds(movingIds, 'add')
       setFloatingCards(prev => [...prev, ...pendingMoves])
@@ -1062,7 +1078,7 @@ export function GameBoard() {
                 id="foundation-flower"
                 className={cn(
                   "w-28 h-40 border-2 border-white/20 rounded-lg bg-white/5 flex items-center justify-center relative transition-all duration-300",
-                  state.foundations.flower && "opacity-50"
+                  (undoPreviewFoundations ?? state.foundations).flower && "opacity-50"
                 )}
               >
                 <Flower className={cn(
@@ -1078,7 +1094,7 @@ export function GameBoard() {
                     isFaceDown={true}
                   />
                 )}
-                {state.foundations.flower && (
+                {(undoPreviewFoundations ?? state.foundations).flower && (
                   <Card
                     card={{ id: 'flower', kind: 'flower', color: null }}
                     cardStyle={cardStyle}
@@ -1132,7 +1148,7 @@ export function GameBoard() {
           <div className="flex items-start justify-end justify-self-end">
             <div className="grid grid-cols-3 gap-2 items-start">
               {(['green', 'red', 'black'] as const).map((color) => {
-                const value = state.foundations[color]
+                const value = (undoPreviewFoundations ?? state.foundations)[color]
                 const foundationCard: CardType | null = value > 0 ? {
                   id: `normal-${color}-${value}`,
                   kind: 'normal',
