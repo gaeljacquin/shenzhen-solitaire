@@ -979,39 +979,66 @@ export function GameBoard() {
             </div>
           )}
 
-          <div className="w-full flex justify-between items-start mb-8 gap-8">
-            <div className="flex gap-2">
-              {state.freeCells.map((card, i) => {
-                const isBeingDragged = card && draggedStack.some(c => c.id === card.id)
-                const isMovingCard = !!card && movingCardIds.has(card.id)
-                return (
-                  <DroppableZone key={`free-${i}`} id={`free-${i}`} className={cn(
-                    "w-28 h-40 border-2 border-white/20 rounded-lg bg-white/5 flex items-center justify-center transition-opacity",
-                    card && card.kind === 'dragon' && card.isLocked && "opacity-50"
-                  )}>
-                    {card && (
-                      <Card
-                        card={card}
-                        cardStyle={cardStyle}
-                        className={cn(
-                          isBeingDragged && "opacity-0",
-                          card && shouldHideCard(card.id) && "opacity-0 instant-hide",
-                          isMovingCard && "pointer-events-none",
-                          state.status === 'paused' && "opacity-0"
-                        )}
-                        disableLayout={movingCardIds.has(card.id) || skipLayoutIds.has(card.id)}
-                        onClick={() => handleCardClick(card)}
-                        canMoveToFoundation={canMoveToFoundation(card)}
-                        disabled={isUiLocked}
-                        isFaceDown={areCardsFaceDown}
-                      />
-                    )}
-                  </DroppableZone>
-                )
-              })}
+          <div className="w-full grid grid-cols-3 items-start mb-8 gap-8">
+            <div className="flex flex-col gap-3 justify-self-start w-fit">
+              <div className="grid grid-cols-[repeat(4,7rem)] gap-2">
+                {state.freeCells.map((card, i) => {
+                  const isBeingDragged = card && draggedStack.some(c => c.id === card.id)
+                  const isMovingCard = !!card && movingCardIds.has(card.id)
+                  return (
+                    <DroppableZone key={`free-${i}`} id={`free-${i}`} className={cn(
+                      "w-28 h-40 border-2 border-white/20 rounded-lg bg-white/5 flex items-center justify-center transition-opacity",
+                      card && card.kind === 'dragon' && card.isLocked && "opacity-50"
+                    )}>
+                      {card && (
+                        <Card
+                          card={card}
+                          cardStyle={cardStyle}
+                          className={cn(
+                            isBeingDragged && "opacity-0",
+                            card && shouldHideCard(card.id) && "opacity-0 instant-hide",
+                            isMovingCard && "pointer-events-none",
+                            state.status === 'paused' && "opacity-0"
+                          )}
+                          disableLayout={movingCardIds.has(card.id) || skipLayoutIds.has(card.id)}
+                          onClick={() => handleCardClick(card)}
+                          canMoveToFoundation={canMoveToFoundation(card)}
+                          disabled={isUiLocked}
+                          isFaceDown={areCardsFaceDown}
+                        />
+                      )}
+                    </DroppableZone>
+                  )
+                })}
+              </div>
+
+              <div className="grid grid-cols-[repeat(4,7rem)] gap-2">
+                <div className="flex justify-center">
+                  <DragonButton
+                    color="green"
+                    disabled={isUiLocked}
+                    onCollect={() => handleCollectDragons('green')}
+                  />
+                </div>
+                <div className="flex justify-center">
+                  <DragonButton
+                    color="red"
+                    disabled={isUiLocked}
+                    onCollect={() => handleCollectDragons('red')}
+                  />
+                </div>
+                <div className="flex justify-center">
+                  <DragonButton
+                    color="black"
+                    disabled={isUiLocked}
+                    onCollect={() => handleCollectDragons('black')}
+                  />
+                </div>
+                <div />
+              </div>
             </div>
 
-          <div className="flex flex-col gap-4 items-center">
+            <div className="flex flex-col gap-4 items-center justify-self-center">
             <DroppableZone
               id="foundation-flower"
               className={cn(
@@ -1046,27 +1073,10 @@ export function GameBoard() {
               )}
             </DroppableZone>
 
-            <div className="flex gap-2">
-              <DragonButton
-                color="green"
-                disabled={isUiLocked}
-                onCollect={() => handleCollectDragons('green')}
-              />
-              <DragonButton
-                color="red"
-                disabled={isUiLocked}
-                onCollect={() => handleCollectDragons('red')}
-              />
-              <DragonButton
-                color="black"
-                disabled={isUiLocked}
-                onCollect={() => handleCollectDragons('black')}
-              />
-            </div>
           </div>
 
-          <div className="flex flex-col gap-2 items-end">
-            <div className="flex gap-2">
+          <div className="flex items-start justify-end justify-self-end">
+            <div className="grid grid-cols-3 gap-2 items-start">
               {['green', 'red', 'black'].map((color) => {
                 const value = state.foundations[color as keyof typeof state.foundations] as number
                 const foundationCard: CardType | null = value > 0 ? {
@@ -1100,21 +1110,21 @@ export function GameBoard() {
                   </DroppableZone>
                 )
               })}
-            </div>
 
-            <div className="flex gap-2">
-              <button
-                className={cn(
-                  "w-16 h-12 rounded-md border-2 flex items-center justify-center transition-all duration-200 ease-out mt-2 disabled:opacity-50 disabled:cursor-not-allowed",
-                  isAutoSolveActive
-                    ? "bg-cyan-900/50 border-cyan-500 text-cyan-400 hover:bg-cyan-800 hover:text-white shadow-[0_0_10px_rgba(34,211,238,0.3)] cursor-pointer"
-                    : "bg-slate-900 active:scale-95 active:brightness-90 disabled:pointer-events-auto opacity-50",
-                )}
-                onClick={handleAutoSolve}
-                disabled={isUiLocked || !isAutoSolveActive}
-              >
-                <CheckCheck className="size-5" />
-              </button>
+              <div className="col-start-2 flex justify-center mt-2">
+                <button
+                  className={cn(
+                    "w-16 h-12 rounded-md border-2 flex items-center justify-center transition-all duration-200 ease-out disabled:opacity-50 disabled:cursor-not-allowed",
+                    isAutoSolveActive
+                      ? "bg-cyan-900/50 border-cyan-500 text-cyan-400 hover:bg-cyan-800 hover:text-white shadow-[0_0_10px_rgba(34,211,238,0.3)] cursor-pointer"
+                      : "bg-slate-900 active:scale-95 active:brightness-90 disabled:pointer-events-auto opacity-50",
+                  )}
+                  onClick={handleAutoSolve}
+                  disabled={isUiLocked || !isAutoSolveActive}
+                >
+                  <CheckCheck className="size-5" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
