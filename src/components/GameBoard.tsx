@@ -1011,8 +1011,44 @@ export function GameBoard() {
                   )
                 })}
               </div>
+            </div>
 
-              <div className="grid grid-cols-[repeat(4,7rem)] gap-2">
+            <div className="flex flex-col gap-4 items-center justify-self-center">
+              <DroppableZone
+                id="foundation-flower"
+                className={cn(
+                  "w-28 h-40 border-2 border-white/20 rounded-lg bg-white/5 flex items-center justify-center relative transition-all duration-300",
+                  state.foundations.flower && "opacity-50"
+                )}
+              >
+                <Flower className={cn(
+                  "text-white absolute size-8",
+                )} />
+                {isDealingCards && (
+                  <Card
+                    card={{ id: 'deal-dummy', kind: 'flower' }}
+                    cardStyle={cardStyle}
+                    className="absolute pointer-events-none"
+                    dataIdDisabled
+                    disabled={true}
+                    isFaceDown={true}
+                  />
+                )}
+                {state.foundations.flower && (
+                  <Card
+                    card={{ id: 'flower', kind: 'flower' }}
+                    cardStyle={cardStyle}
+                    className={cn(
+                      shouldHideCard('flower') && "opacity-0 instant-hide",
+                      movingCardIds.has('flower') && "pointer-events-none"
+                    )}
+                    disableLayout={movingCardIds.has('flower') || skipLayoutIds.has('flower')}
+                    disabled={true}
+                  />
+                )}
+              </DroppableZone>
+
+              <div className="flex items-center justify-center gap-7">
                 <div className="flex justify-center">
                   <DragonButton
                     color="green"
@@ -1034,46 +1070,20 @@ export function GameBoard() {
                     onCollect={() => handleCollectDragons('black')}
                   />
                 </div>
-                <div />
+                <button
+                  className={cn(
+                    "w-16 h-12 rounded-md border-2 flex items-center justify-center transition-all duration-200 ease-out disabled:opacity-50 disabled:cursor-not-allowed",
+                    isAutoSolveActive
+                      ? "bg-cyan-900/50 border-cyan-500 text-cyan-400 hover:bg-cyan-800 hover:text-white shadow-[0_0_10px_rgba(34,211,238,0.3)] cursor-pointer"
+                      : "bg-slate-900 active:scale-95 active:brightness-90 disabled:pointer-events-auto opacity-50",
+                  )}
+                  onClick={handleAutoSolve}
+                  disabled={isUiLocked || !isAutoSolveActive}
+                >
+                  <CheckCheck className="size-5" />
+                </button>
               </div>
             </div>
-
-            <div className="flex flex-col gap-4 items-center justify-self-center">
-            <DroppableZone
-              id="foundation-flower"
-              className={cn(
-                "w-28 h-40 border-2 border-white/20 rounded-lg bg-white/5 flex items-center justify-center relative transition-all duration-300",
-                state.foundations.flower && "opacity-50"
-              )}
-            >
-              <Flower className={cn(
-                "text-white absolute size-8",
-              )} />
-              {isDealingCards && (
-                <Card
-                  card={{ id: 'deal-dummy', kind: 'flower' }}
-                  cardStyle={cardStyle}
-                  className="absolute pointer-events-none"
-                  dataIdDisabled
-                  disabled={true}
-                  isFaceDown={true}
-                />
-              )}
-              {state.foundations.flower && (
-                <Card
-                  card={{ id: 'flower', kind: 'flower' }}
-                  cardStyle={cardStyle}
-                  className={cn(
-                    shouldHideCard('flower') && "opacity-0 instant-hide",
-                    movingCardIds.has('flower') && "pointer-events-none"
-                  )}
-                  disableLayout={movingCardIds.has('flower') || skipLayoutIds.has('flower')}
-                  disabled={true}
-                />
-              )}
-            </DroppableZone>
-
-          </div>
 
           <div className="flex items-start justify-end justify-self-end">
             <div className="grid grid-cols-3 gap-2 items-start">
@@ -1117,20 +1127,6 @@ export function GameBoard() {
                 )
               })}
 
-              <div className="col-start-2 flex justify-center mt-2">
-                <button
-                  className={cn(
-                    "w-16 h-12 rounded-md border-2 flex items-center justify-center transition-all duration-200 ease-out disabled:opacity-50 disabled:cursor-not-allowed",
-                    isAutoSolveActive
-                      ? "bg-cyan-900/50 border-cyan-500 text-cyan-400 hover:bg-cyan-800 hover:text-white shadow-[0_0_10px_rgba(34,211,238,0.3)] cursor-pointer"
-                      : "bg-slate-900 active:scale-95 active:brightness-90 disabled:pointer-events-auto opacity-50",
-                  )}
-                  onClick={handleAutoSolve}
-                  disabled={isUiLocked || !isAutoSolveActive}
-                >
-                  <CheckCheck className="size-5" />
-                </button>
-              </div>
             </div>
           </div>
         </div>
