@@ -23,6 +23,6 @@ export default defineConfig({
     },
   },
   server: {
-    allowedHosts: ['coder.gaeljacquin.com'],
+    allowedHosts: true,
   },
 })
