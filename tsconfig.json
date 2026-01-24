@@ -1,5 +1,11 @@
 {
-  "include": ["**/*.ts", "**/*.tsx", "eslint.config.js", "prettier.config.js", "vite.config.js"],
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "eslint.config.js",
+    "prettier.config.js",
+    "vite.config.ts"
+  ],
 
   "compilerOptions": {
     "target": "ES2022",
@@ -7,6 +13,7 @@
     "module": "ESNext",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": ["vite/client"],
+    "allowJs": true,
 
     /* Bundler mode */
     "moduleResolution": "bundler",
@@ -23,7 +30,7 @@
     "noUncheckedSideEffectImports": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"],
+      "@/*": ["./src/*"]
     }
   }
 }

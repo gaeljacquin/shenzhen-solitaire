@@ -9,15 +9,15 @@ A Vite + React + TypeScript application using TanStack Router, modeled after the
 
 ## Developer Commands
 
-| Task | Command |
-| :--- | :--- |
-| **Start Dev Server** | `pnpm dev` (runs on port 3000) |
-| **Build for Prod** | `pnpm build` (output to `dist/`) |
-| **Preview Prod** | `pnpm serve` |
-| **Run Tests** | `pnpm test` |
-| **Linting** | `pnpm lint` |
-| **Format Code** | `pnpm format` |
-| **Check & Fix** | `pnpm check` |
+| Task                 | Command                          |
+| :------------------- | :------------------------------- |
+| **Start Dev Server** | `pnpm dev` (runs on port 3000)   |
+| **Build for Prod**   | `pnpm build` (output to `dist/`) |
+| **Preview Prod**     | `pnpm serve`                     |
+| **Run Tests**        | `pnpm test`                      |
+| **Linting**          | `pnpm lint`                      |
+| **Format Code**      | `pnpm format`                    |
+| **Check & Fix**      | `pnpm check`                     |
 
 ## Documentation
 
