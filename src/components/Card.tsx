@@ -68,7 +68,12 @@ function renderBackContent() {
   )
 }
 
-function renderNormalCard(value: number, color: string, cardStyle: CardStyle, isDragging: boolean) {
+function renderNormalCard(
+  value: number,
+  color: string,
+  cardStyle: CardStyle,
+  isDragging: boolean,
+) {
   const colorClass = getCardColors(color, cardStyle)
   return (
     <div
@@ -78,11 +83,15 @@ function renderNormalCard(value: number, color: string, cardStyle: CardStyle, is
         colorClass,
       )}
     >
-      <div className="text-xs sm:text-sm font-bold leading-none self-start">{value}</div>
+      <div className="text-xs sm:text-sm font-bold leading-none self-start">
+        {value}
+      </div>
       <div className="flex-1 flex items-center justify-center">
         <span className="text-3xl sm:text-4xl font-bold">{value}</span>
       </div>
-      <div className="text-xs sm:text-sm font-bold leading-none rotate-180 self-end">{value}</div>
+      <div className="text-xs sm:text-sm font-bold leading-none rotate-180 self-end">
+        {value}
+      </div>
     </div>
   )
 }
@@ -108,9 +117,12 @@ function renderDragonCard(
       <div className="leading-none">{icon}</div>
       <div className="flex-1 flex items-center justify-center">
         {icon &&
-          React.cloneElement(icon as React.ReactElement<{ className?: string }>, {
-            className: 'size-8 sm:size-10 fill-current',
-          })}
+          React.cloneElement(
+            icon as React.ReactElement<{ className?: string }>,
+            {
+              className: 'size-8 sm:size-10 fill-current',
+            },
+          )}
       </div>
       <div className="leading-none rotate-180">{icon}</div>
     </div>
@@ -145,7 +157,11 @@ function renderFlowerCard(cardStyle: CardStyle, isDragging: boolean) {
   )
 }
 
-function renderFrontContent(card: CardType, cardStyle: CardStyle, isDragging: boolean) {
+function renderFrontContent(
+  card: CardType,
+  cardStyle: CardStyle,
+  isDragging: boolean,
+) {
   switch (card.kind) {
     case 'normal':
       return renderNormalCard(card.value, card.color, cardStyle, isDragging)
@@ -156,7 +172,12 @@ function renderFrontContent(card: CardType, cardStyle: CardStyle, isDragging: bo
   }
 }
 
-function renderCardContent(card: CardType, cardStyle: CardStyle, isDragging: boolean, isFaceDown?: boolean) {
+function renderCardContent(
+  card: CardType,
+  cardStyle: CardStyle,
+  isDragging: boolean,
+  isFaceDown?: boolean,
+) {
   if (isFaceDown) return renderBackContent()
   return renderFrontContent(card, cardStyle, isDragging)
 }
@@ -175,9 +196,16 @@ export function Card({
   disableLayout,
   isFaceDown,
 }: Readonly<CardProps>) {
-  const isCardDisabled = Boolean(disabled || (card.kind === 'dragon' && card.isLocked))
+  const isCardDisabled = Boolean(
+    disabled || (card.kind === 'dragon' && card.isLocked),
+  )
   const isDndDisabled = isCardDisabled || propIsDragging
-  const { attributes, listeners, setNodeRef, isDragging: dndIsDragging } = useDraggable({
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    isDragging: dndIsDragging,
+  } = useDraggable({
     id: card.id,
     disabled: isDndDisabled,
   })
@@ -220,7 +248,9 @@ export function Card({
   return (
     <motion.button
       type="button"
-      layoutId={disableLayout || className?.includes('opacity-0') ? undefined : card.id}
+      layoutId={
+        disableLayout || className?.includes('opacity-0') ? undefined : card.id
+      }
       layout={disableLayout ? false : 'position'}
       initial={false}
       ref={setNodeRef}

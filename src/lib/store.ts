@@ -36,14 +36,14 @@ function createDeck(): Array<Card> {
   const deck: Array<Card> = []
 
   const colors: Array<CardColor> = ['green', 'red', 'black']
-  colors.forEach(color => {
+  colors.forEach((color) => {
     for (let i = 1; i <= 9; i++) {
       deck.push({ id: `normal-${color}-${i}`, kind: 'normal', color, value: i })
     }
   })
 
   const dragonColors: Array<DragonColor> = ['green', 'red', 'black']
-  dragonColors.forEach(color => {
+  dragonColors.forEach((color) => {
     for (let i = 0; i < 4; i++) {
       deck.push({ id: `dragon-${color}-${i}`, kind: 'dragon', color })
     }
@@ -57,8 +57,8 @@ function createDeck(): Array<Card> {
 function shuffle<T>(array: Array<T>): Array<T> {
   const newArray = [...array]
   for (let i = newArray.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [newArray[i], newArray[j]] = [newArray[j], newArray[i]]
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[newArray[i], newArray[j]] = [newArray[j], newArray[i]]
   }
   return newArray
 }
@@ -79,8 +79,7 @@ function getTimerVisibilityFromStorage(): boolean {
 function saveTimerVisibilityToStorage(visible: boolean): void {
   try {
     globalThis.localStorage.setItem(TIMER_VISIBILITY_KEY, String(visible))
-  } catch {
-  }
+  } catch {}
 }
 
 function getUndoEnabledFromStorage(): boolean {
@@ -95,8 +94,7 @@ function getUndoEnabledFromStorage(): boolean {
 function saveUndoEnabledToStorage(enabled: boolean): void {
   try {
     globalThis.localStorage.setItem(UNDO_ENABLED_KEY, String(enabled))
-  } catch {
-  }
+  } catch {}
 }
 
 function getNoAutoMoveFirstMoveFromStorage(): boolean {
@@ -110,14 +108,17 @@ function getNoAutoMoveFirstMoveFromStorage(): boolean {
 
 function saveNoAutoMoveFirstMoveToStorage(enabled: boolean): void {
   try {
-    globalThis.localStorage.setItem(NO_AUTO_MOVE_FIRST_MOVE_KEY, String(enabled))
-  } catch {
-  }
+    globalThis.localStorage.setItem(
+      NO_AUTO_MOVE_FIRST_MOVE_KEY,
+      String(enabled),
+    )
+  } catch {}
 }
 
-function dealCards(
-  options: { noAutoMoveFirstMove?: boolean } = {},
-): { columns: Array<Array<Card>>, freeCells: Array<Card | null> } {
+function dealCards(options: { noAutoMoveFirstMove?: boolean } = {}): {
+  columns: Array<Array<Card>>
+  freeCells: Array<Card | null>
+} {
   const { noAutoMoveFirstMove = false } = options
 
   const dealOnce = () => {
@@ -162,12 +163,12 @@ export const gameStore = new Store<GameState>({
     green: 0,
     red: 0,
     black: 0,
-    flower: false
+    flower: false,
   },
   dragons: {
     green: 0,
     red: 0,
-    black: 0
+    black: 0,
   },
   status: 'idle',
   history: [],
@@ -183,21 +184,21 @@ export const gameStore = new Store<GameState>({
 })
 
 export function syncTimerVisibility() {
-  gameStore.setState(state => ({
+  gameStore.setState((state) => ({
     ...state,
-    isTimerVisible: getTimerVisibilityFromStorage()
+    isTimerVisible: getTimerVisibilityFromStorage(),
   }))
 }
 
 export function syncUndoEnabled() {
-  gameStore.setState(state => ({
+  gameStore.setState((state) => ({
     ...state,
-    isUndoEnabled: getUndoEnabledFromStorage()
+    isUndoEnabled: getUndoEnabledFromStorage(),
   }))
 }
 
 export function syncNoAutoMoveFirstMove() {
-  gameStore.setState(state => ({
+  gameStore.setState((state) => ({
     ...state,
     isNoAutoMoveFirstMove: getNoAutoMoveFirstMoveFromStorage(),
   }))
@@ -210,7 +211,9 @@ function canStack(bottomCard: Card, topCard: Card): boolean {
   return true
 }
 
-type SourceLocation = { type: 'column'; index: number } | { type: 'free'; index: number }
+type SourceLocation =
+  | { type: 'column'; index: number }
+  | { type: 'free'; index: number }
 type TargetLocation =
   | { type: 'column'; index: number }
   | { type: 'free'; index: number }
@@ -266,19 +269,23 @@ function ensureTimerRunning(state: GameState) {
   return { timerRunning: state.timerRunning, startTime: state.startTime }
 }
 
-const isPlayableState = (state: GameState) => state.status === 'playing' || state.devMode
+const isPlayableState = (state: GameState) =>
+  state.status === 'playing' || state.devMode
 
 function getCardSource(state: GameState, cardId: string) {
   for (const [index, column] of state.columns.entries()) {
-    const card = column.find(c => c.id === cardId)
+    const card = column.find((c) => c.id === cardId)
     if (card) {
       return { card, source: { type: 'column', index } as const }
     }
   }
 
-  const freeIndex = state.freeCells.findIndex(c => c?.id === cardId)
+  const freeIndex = state.freeCells.findIndex((c) => c?.id === cardId)
   if (freeIndex !== -1) {
-    return { card: state.freeCells[freeIndex]!, source: { type: 'free', index: freeIndex } as const }
+    return {
+      card: state.freeCells[freeIndex]!,
+      source: { type: 'free', index: freeIndex } as const,
+    }
   }
 
   return null
@@ -310,13 +317,17 @@ function isValidSequence(cards: Array<Card>) {
   return true
 }
 
-function getMoveStateForSource(state: GameState, cardId: string, source: SourceLocation) {
-  const newColumns = state.columns.map(col => [...col])
+function getMoveStateForSource(
+  state: GameState,
+  cardId: string,
+  source: SourceLocation,
+) {
+  const newColumns = state.columns.map((col) => [...col])
   const newFreeCells = [...state.freeCells]
 
   if (source.type === 'column') {
     const col = newColumns[source.index]
-    const cardIndex = col.findIndex(c => c.id === cardId)
+    const cardIndex = col.findIndex((c) => c.id === cardId)
     if (cardIndex === -1) return null
     const cardsToMove = col.slice(cardIndex)
     if (!state.devMode && !isValidSequence(cardsToMove)) return null
@@ -330,20 +341,22 @@ function getMoveStateForSource(state: GameState, cardId: string, source: SourceL
   return { cardsToMove: [card], newColumns, newFreeCells }
 }
 
-type DragonLocation = { type: 'col'; index: number } | { type: 'free'; index: number }
+type DragonLocation =
+  | { type: 'col'; index: number }
+  | { type: 'free'; index: number }
 
 function getDragonLocations(state: GameState, color: DragonColor) {
   const locations: Array<DragonLocation> = []
 
   for (const idSuffix of DRAGON_IDS) {
     const id = `dragon-${color}-${idSuffix}`
-    const freeIdx = state.freeCells.findIndex(c => c?.id === id)
+    const freeIdx = state.freeCells.findIndex((c) => c?.id === id)
     if (freeIdx !== -1) {
       locations.push({ type: 'free', index: freeIdx })
       continue
     }
 
-    const colIndex = state.columns.findIndex(col => col.at(-1)?.id === id)
+    const colIndex = state.columns.findIndex((col) => col.at(-1)?.id === id)
     if (colIndex !== -1) {
       locations.push({ type: 'col', index: colIndex })
       continue
@@ -355,33 +368,54 @@ function getDragonLocations(state: GameState, color: DragonColor) {
   return { locations, allFound: true }
 }
 
-function getDragonTargetIndex(locations: Array<DragonLocation>, freeCells: Array<Card | null>) {
-  const occupiedFreeIndex = locations.find(loc => loc.type === 'free')?.index
+function getDragonTargetIndex(
+  locations: Array<DragonLocation>,
+  freeCells: Array<Card | null>,
+) {
+  const occupiedFreeIndex = locations.find((loc) => loc.type === 'free')?.index
   if (occupiedFreeIndex !== undefined) return occupiedFreeIndex
   return freeCells.indexOf(null)
 }
 
 function getNextRankLocations(state: GameState) {
-  const minFoundation = Math.min(state.foundations.green, state.foundations.red, state.foundations.black)
+  const minFoundation = Math.min(
+    state.foundations.green,
+    state.foundations.red,
+    state.foundations.black,
+  )
   const nextRank = minFoundation + 1
   if (nextRank > 9) return null
 
-  const locations: Array<{ id: string; source: 'col' | 'free'; index: number; color: CardColor }> = []
+  const locations: Array<{
+    id: string
+    source: 'col' | 'free'
+    index: number
+    color: CardColor
+  }> = []
 
   for (const color of FOUNDATION_COLORS) {
     if (state.foundations[color] >= nextRank) continue
 
     const freeIdx = state.freeCells.findIndex(
-      c => c?.kind === 'normal' && c.color === color && c.value === nextRank,
+      (c) => c?.kind === 'normal' && c.color === color && c.value === nextRank,
     )
     if (freeIdx !== -1) {
-      locations.push({ id: state.freeCells[freeIdx]!.id, source: 'free', index: freeIdx, color })
+      locations.push({
+        id: state.freeCells[freeIdx]!.id,
+        source: 'free',
+        index: freeIdx,
+        color,
+      })
       continue
     }
 
-    const colIndex = state.columns.findIndex(col => {
+    const colIndex = state.columns.findIndex((col) => {
       const card = col.at(-1)
-      return card?.kind === 'normal' && card.color === color && card.value === nextRank
+      return (
+        card?.kind === 'normal' &&
+        card.color === color &&
+        card.value === nextRank
+      )
     })
     if (colIndex !== -1) {
       const card = state.columns[colIndex].at(-1)!
@@ -400,11 +434,11 @@ function applyAutoSolveMove(
   nextRank: number,
   locations: Array<{ source: 'col' | 'free'; index: number; color: CardColor }>,
 ) {
-  const newColumns = state.columns.map(col => [...col])
+  const newColumns = state.columns.map((col) => [...col])
   const newFreeCells = [...state.freeCells]
   const newFoundations = { ...state.foundations }
 
-  locations.forEach(loc => {
+  locations.forEach((loc) => {
     if (loc.source === 'col') {
       newColumns[loc.index].pop()
     } else {
@@ -421,17 +455,24 @@ function applyAutoSolveMove(
   }
 }
 
-function shouldAutoMoveCard(state: GameState, card: Card, isFoundationFull: boolean) {
+function shouldAutoMoveCard(
+  state: GameState,
+  card: Card,
+  isFoundationFull: boolean,
+) {
   if (card.kind === 'normal') return card.value === 1
-  if (card.kind === 'flower') return isFoundationFull || !state.foundations.flower
+  if (card.kind === 'flower')
+    return isFoundationFull || !state.foundations.flower
   return false
 }
 
 function hasAutoMoveOnDeal(columns: Array<Array<Card>>) {
-  return columns.some(col => {
+  return columns.some((col) => {
     const card = col.at(-1)
     if (!card) return false
-    return card.kind === 'flower' || (card.kind === 'normal' && card.value === 1)
+    return (
+      card.kind === 'flower' || (card.kind === 'normal' && card.value === 1)
+    )
   })
 }
 
@@ -456,12 +497,15 @@ function getAutoMoveCandidates(state: GameState, isFoundationFull: boolean) {
   return moves
 }
 
-function applyAutoMoves(state: GameState, moves: Array<{ source: 'col' | 'free'; index: number; card: Card }>) {
-  const newColumns = state.columns.map(col => [...col])
+function applyAutoMoves(
+  state: GameState,
+  moves: Array<{ source: 'col' | 'free'; index: number; card: Card }>,
+) {
+  const newColumns = state.columns.map((col) => [...col])
   const newFreeCells = [...state.freeCells]
   const newFoundations = { ...state.foundations }
 
-  moves.forEach(move => {
+  moves.forEach((move) => {
     if (move.source === 'col') {
       newColumns[move.index].pop()
     } else {
@@ -504,7 +548,8 @@ function applyMoveToColumn(
 ): MoveResult | null {
   const targetCol = newColumns[targetIndex]
   const topCard = targetCol.at(-1)
-  if (topCard && !state.devMode && !canStack(topCard, cardsToMove[0])) return null
+  if (topCard && !state.devMode && !canStack(topCard, cardsToMove[0]))
+    return null
   newColumns[targetIndex] = [...targetCol, ...cardsToMove]
   return { newColumns, newFreeCells, newFoundations }
 }
@@ -594,7 +639,12 @@ function applyCardMove(
   state: GameState,
   cardId: string,
   targetId: string,
-): { columns: Array<Array<Card>>; freeCells: Array<Card | null>; foundations: GameState['foundations']; history: GameState['history'] } | null {
+): {
+  columns: Array<Array<Card>>
+  freeCells: Array<Card | null>
+  foundations: GameState['foundations']
+  history: GameState['history']
+} | null {
   const sourceInfo = getCardSource(state, cardId)
   if (!sourceInfo) return null
 
@@ -623,7 +673,11 @@ function applyCardMove(
   }
 }
 
-export function moveCard(cardId: string, targetId: string, skipAutoMove: boolean = false) {
+export function moveCard(
+  cardId: string,
+  targetId: string,
+  skipAutoMove: boolean = false,
+) {
   gameStore.setState((state) => {
     if (!isPlayableState(state)) return state
 
@@ -650,16 +704,19 @@ export function collectDragons(color: DragonColor) {
     if (state.dragons[color] > 0) return state
 
     if (state.devMode) {
-      const dragonFreeIndex = state.freeCells.findIndex(cell => cell?.kind === 'dragon' && cell.color === color)
+      const dragonFreeIndex = state.freeCells.findIndex(
+        (cell) => cell?.kind === 'dragon' && cell.color === color,
+      )
 
-      const targetFreeIndex = dragonFreeIndex === -1 ?  state.freeCells.indexOf(null) : dragonFreeIndex
+      const targetFreeIndex =
+        dragonFreeIndex === -1 ? state.freeCells.indexOf(null) : dragonFreeIndex
 
       if (targetFreeIndex === -1) return state
 
-      const newColumns = state.columns.map(col =>
-        col.filter(card => !(card.kind === 'dragon' && card.color === color)),
+      const newColumns = state.columns.map((col) =>
+        col.filter((card) => !(card.kind === 'dragon' && card.color === color)),
       )
-      const newFreeCells = state.freeCells.map(cell => {
+      const newFreeCells = state.freeCells.map((cell) => {
         if (cell?.kind === 'dragon' && cell.color === color) return null
         return cell
       })
@@ -692,10 +749,10 @@ export function collectDragons(color: DragonColor) {
     const targetFreeIndex = getDragonTargetIndex(locations, state.freeCells)
     if (targetFreeIndex === -1) return state
 
-    const newColumns = state.columns.map(col => [...col])
+    const newColumns = state.columns.map((col) => [...col])
     const newFreeCells = [...state.freeCells]
 
-    locations.forEach(loc => {
+    locations.forEach((loc) => {
       if (loc.type === 'col') {
         newColumns[loc.index].pop()
       } else {
@@ -726,156 +783,156 @@ export function collectDragons(color: DragonColor) {
 }
 
 export function undo() {
-    gameStore.setState((state) => computeUndoState(state) ?? state)
+  gameStore.setState((state) => computeUndoState(state) ?? state)
 }
 
 export function computeUndoState(state: GameState): GameState | null {
-    if (!state.isUndoEnabled) return null
-    if (state.history.length === 0) return null
+  if (!state.isUndoEnabled) return null
+  if (state.history.length === 0) return null
 
-    const history = [...state.history]
-    let previous = history.pop()!
-    let newState = {
-        ...state,
-        ...previous,
-        history: history,
-        status: 'playing' as GameStatus,
-        timerRunning: true,
-        isTimerVisible: state.isTimerVisible,
-        isUndoEnabled: state.isUndoEnabled,
-        isNoAutoMoveFirstMove: state.isNoAutoMoveFirstMove,
+  const history = [...state.history]
+  let previous = history.pop()!
+  let newState = {
+    ...state,
+    ...previous,
+    history: history,
+    status: 'playing' as GameStatus,
+    timerRunning: true,
+    isTimerVisible: state.isTimerVisible,
+    isUndoEnabled: state.isUndoEnabled,
+    isNoAutoMoveFirstMove: state.isNoAutoMoveFirstMove,
+  }
+
+  if (newState.status === 'playing') {
+    newState.timerRunning = true
+  }
+
+  while (previous.isAuto && history.length > 0) {
+    previous = history.pop()!
+    newState = {
+      ...newState,
+      ...previous,
+      history: history,
+      isTimerVisible: state.isTimerVisible,
+      isUndoEnabled: state.isUndoEnabled,
+      isNoAutoMoveFirstMove: state.isNoAutoMoveFirstMove,
     }
+  }
 
-    if (newState.status === 'playing') {
-        newState.timerRunning = true
-    }
-
-    while (previous.isAuto && history.length > 0) {
-        previous = history.pop()!
-        newState = {
-            ...newState,
-            ...previous,
-            history: history,
-            isTimerVisible: state.isTimerVisible,
-            isUndoEnabled: state.isUndoEnabled,
-            isNoAutoMoveFirstMove: state.isNoAutoMoveFirstMove,
-        }
-    }
-
-    return newState
+  return newState
 }
 
 export function newGame() {
-    gameStore.setState((s) => {
-        const newState = dealCards({ noAutoMoveFirstMove: s.isNoAutoMoveFirstMove })
-        const initialColumns = newState.columns.map(col => [...col])
-        const initialFreeCells = [...newState.freeCells]
-        return {
-            columns: newState.columns,
-            freeCells: newState.freeCells,
-            initialColumns,
-            initialFreeCells,
-            foundations: {
-                green: 0,
-                red: 0,
-                black: 0,
-                flower: false
-            },
-            dragons: {
-                green: 0,
-                red: 0,
-                black: 0
-            },
-            status: 'playing',
-            history: [],
-            devMode: s.devMode,
-            gameId: s.gameId + 1,
-            startTime: null,
-            elapsedTime: 0,
-            timerRunning: false,
-            isTimerVisible: s.isTimerVisible,
-            isUndoEnabled: s.isUndoEnabled,
-            isNoAutoMoveFirstMove: s.isNoAutoMoveFirstMove,
-            isLocked: s.isLocked,
-        }
-    })
+  gameStore.setState((s) => {
+    const newState = dealCards({ noAutoMoveFirstMove: s.isNoAutoMoveFirstMove })
+    const initialColumns = newState.columns.map((col) => [...col])
+    const initialFreeCells = [...newState.freeCells]
+    return {
+      columns: newState.columns,
+      freeCells: newState.freeCells,
+      initialColumns,
+      initialFreeCells,
+      foundations: {
+        green: 0,
+        red: 0,
+        black: 0,
+        flower: false,
+      },
+      dragons: {
+        green: 0,
+        red: 0,
+        black: 0,
+      },
+      status: 'playing',
+      history: [],
+      devMode: s.devMode,
+      gameId: s.gameId + 1,
+      startTime: null,
+      elapsedTime: 0,
+      timerRunning: false,
+      isTimerVisible: s.isTimerVisible,
+      isUndoEnabled: s.isUndoEnabled,
+      isNoAutoMoveFirstMove: s.isNoAutoMoveFirstMove,
+      isLocked: s.isLocked,
+    }
+  })
 }
 
 export function newGameNoAutoMoveFirstMove() {
-    gameStore.setState((s) => {
-        const newState = dealCards({ noAutoMoveFirstMove: true })
-        const initialColumns = newState.columns.map(col => [...col])
-        const initialFreeCells = [...newState.freeCells]
-        return {
-            columns: newState.columns,
-            freeCells: newState.freeCells,
-            initialColumns,
-            initialFreeCells,
-            foundations: {
-                green: 0,
-                red: 0,
-                black: 0,
-                flower: false
-            },
-            dragons: {
-                green: 0,
-                red: 0,
-                black: 0
-            },
-            status: 'playing',
-            history: [],
-            devMode: s.devMode,
-            gameId: s.gameId + 1,
-            startTime: null,
-            elapsedTime: 0,
-            timerRunning: false,
-            isTimerVisible: s.isTimerVisible,
-            isUndoEnabled: s.isUndoEnabled,
-            isNoAutoMoveFirstMove: s.isNoAutoMoveFirstMove,
-            isLocked: s.isLocked,
-        }
-    })
+  gameStore.setState((s) => {
+    const newState = dealCards({ noAutoMoveFirstMove: true })
+    const initialColumns = newState.columns.map((col) => [...col])
+    const initialFreeCells = [...newState.freeCells]
+    return {
+      columns: newState.columns,
+      freeCells: newState.freeCells,
+      initialColumns,
+      initialFreeCells,
+      foundations: {
+        green: 0,
+        red: 0,
+        black: 0,
+        flower: false,
+      },
+      dragons: {
+        green: 0,
+        red: 0,
+        black: 0,
+      },
+      status: 'playing',
+      history: [],
+      devMode: s.devMode,
+      gameId: s.gameId + 1,
+      startTime: null,
+      elapsedTime: 0,
+      timerRunning: false,
+      isTimerVisible: s.isTimerVisible,
+      isUndoEnabled: s.isUndoEnabled,
+      isNoAutoMoveFirstMove: s.isNoAutoMoveFirstMove,
+      isLocked: s.isLocked,
+    }
+  })
 }
 
 export function restartGame() {
-    gameStore.setState((state) => ({
-        ...state,
-        columns: state.initialColumns.map(col => [...col]),
-        freeCells: [...state.initialFreeCells],
-        foundations: {
-            green: 0,
-            red: 0,
-            black: 0,
-            flower: false
-        },
-        dragons: {
-            green: 0,
-            red: 0,
-            black: 0
-        },
-        status: 'playing',
-        history: [],
-        startTime: null,
-        elapsedTime: 0,
-        timerRunning: false
-    }))
+  gameStore.setState((state) => ({
+    ...state,
+    columns: state.initialColumns.map((col) => [...col]),
+    freeCells: [...state.initialFreeCells],
+    foundations: {
+      green: 0,
+      red: 0,
+      black: 0,
+      flower: false,
+    },
+    dragons: {
+      green: 0,
+      red: 0,
+      black: 0,
+    },
+    status: 'playing',
+    history: [],
+    startTime: null,
+    elapsedTime: 0,
+    timerRunning: false,
+  }))
 }
 
 export function pauseGame() {
-    gameStore.setState(state => ({
-        ...state,
-        status: state.status === 'paused' ? 'playing' : 'paused',
-        timerRunning: state.status === 'paused',
-    }))
+  gameStore.setState((state) => ({
+    ...state,
+    status: state.status === 'paused' ? 'playing' : 'paused',
+    timerRunning: state.status === 'paused',
+  }))
 }
 
 export function resumeGame() {
-    gameStore.setState(state => ({
-        ...state,
-        status: 'playing',
-        timerRunning: true,
-        startTime: Date.now() - state.elapsedTime
-    }))
+  gameStore.setState((state) => ({
+    ...state,
+    status: 'playing',
+    timerRunning: true,
+    startTime: Date.now() - state.elapsedTime,
+  }))
 }
 
 export function autoSolve() {
@@ -891,7 +948,11 @@ export function autoSolve() {
       currentState = applyAutoSolveMove(
         currentState,
         result.nextRank,
-        result.locations.map(({ source, index, color }) => ({ source, index, color })),
+        result.locations.map(({ source, index, color }) => ({
+          source,
+          index,
+          color,
+        })),
       )
       result = getNextRankLocations(currentState)
     }
@@ -936,65 +997,65 @@ function autoMoveOnes(state: GameState): GameState {
 }
 
 export function toggleDevMode() {
-    gameStore.setState(state => ({
-        ...state,
-        devMode: !state.devMode
-    }))
+  gameStore.setState((state) => ({
+    ...state,
+    devMode: !state.devMode,
+  }))
 }
 
 export function triggerAutoMove() {
-    gameStore.setState(state => {
-        if (state.status !== 'playing' && !state.devMode) return state
+  gameStore.setState((state) => {
+    if (state.status !== 'playing' && !state.devMode) return state
 
-        const timerState = ensureTimerRunning(state)
-        const nextState = {
-            ...state,
-            timerRunning: timerState.timerRunning,
-            startTime: timerState.startTime
-        }
+    const timerState = ensureTimerRunning(state)
+    const nextState = {
+      ...state,
+      timerRunning: timerState.timerRunning,
+      startTime: timerState.startTime,
+    }
 
-        return autoMoveOnes(nextState)
-    })
+    return autoMoveOnes(nextState)
+  })
 }
 
 export function updateTimer(elapsed: number) {
-    gameStore.setState(state => ({
-        ...state,
-        elapsedTime: elapsed
-    }))
+  gameStore.setState((state) => ({
+    ...state,
+    elapsedTime: elapsed,
+  }))
 }
 
 export function setTimerVisibility(visible: boolean) {
-    saveTimerVisibilityToStorage(visible)
-    gameStore.setState(state => ({
-        ...state,
-        isTimerVisible: visible
-    }))
+  saveTimerVisibilityToStorage(visible)
+  gameStore.setState((state) => ({
+    ...state,
+    isTimerVisible: visible,
+  }))
 }
 
 export function toggleTimerVisibility() {
-    gameStore.setState(state => {
-        const newVisibility = !state.isTimerVisible
-        saveTimerVisibilityToStorage(newVisibility)
-        return {
-            ...state,
-            isTimerVisible: newVisibility
-        }
-    })
+  gameStore.setState((state) => {
+    const newVisibility = !state.isTimerVisible
+    saveTimerVisibilityToStorage(newVisibility)
+    return {
+      ...state,
+      isTimerVisible: newVisibility,
+    }
+  })
 }
 
 export function setUndoEnabled(enabled: boolean) {
-    saveUndoEnabledToStorage(enabled)
-    gameStore.setState(state => ({
-        ...state,
-        isUndoEnabled: enabled
-    }))
+  saveUndoEnabledToStorage(enabled)
+  gameStore.setState((state) => ({
+    ...state,
+    isUndoEnabled: enabled,
+  }))
 }
 
 export function setNoAutoMoveFirstMove(enabled: boolean) {
-    saveNoAutoMoveFirstMoveToStorage(enabled)
-    gameStore.setState(state => ({
-        ...state,
-        isNoAutoMoveFirstMove: enabled,
-    }))
+  saveNoAutoMoveFirstMoveToStorage(enabled)
+  gameStore.setState((state) => ({
+    ...state,
+    isNoAutoMoveFirstMove: enabled,
+  }))
 }
